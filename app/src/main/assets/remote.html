@@ -6,148 +6,205 @@
 <title>Prompter Remote</title>
 <style>
   :root {
-    --bg: #0e0e10; --panel: #1a1a1e; --line: #2a2a30; --text: #f2f2f2; --muted: #8b8b93;
-    --accent: #ffc94d; --accent-ink: #1a1400; --red: #b3261e; --ok: #3ccf6e;
+    --bg: #0d0d0f; --panel: #17171a; --panel2: #1e1e22; --line: #2a2a30; --text: #f2f2f2; --muted: #8e8e96;
+    --accent: #ffc94d; --accent-ink: #1a1400; --blue: #0a84ff; --red: #e5534b; --ok: #3ccf6e;
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
-  header { display: flex; align-items: center; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--line); }
-  header h1 { font-size: 17px; margin: 0; font-weight: 600; }
-  .dot { width: 10px; height: 10px; border-radius: 50%; background: #555; flex: none; }
-  .dot.on { background: var(--ok); }
-  .dot.hear { background: var(--accent); box-shadow: 0 0 10px var(--accent); }
-  #conn { color: var(--muted); font-size: 13px; margin-left: auto; }
-  main { max-width: 1100px; margin: 0 auto; padding: 20px; display: grid; gap: 20px; grid-template-columns: 1.2fr 1fr; }
-  @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
-  section { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; }
-  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 12px; font-weight: 600; }
-  #title { font-size: 14px; color: var(--muted); margin-bottom: 8px; }
-  #line { font-size: 26px; line-height: 1.35; min-height: 72px; padding: 10px 12px; border-left: 4px solid var(--red); background: rgba(179,38,30,.15); border-radius: 6px; }
-  #next { font-size: 18px; color: var(--muted); margin-top: 10px; min-height: 26px; }
-  #heard { font-size: 13px; color: var(--muted); margin-top: 12px; min-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .progress { height: 4px; background: var(--line); border-radius: 2px; margin-top: 14px; overflow: hidden; }
-  .progress > div { height: 100%; width: 0; background: var(--accent); transition: width .3s; }
-  .controls { display: grid; gap: 12px; margin-top: 18px; }
-  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-  button { font: inherit; color: var(--text); background: #26262c; border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; cursor: pointer; min-width: 44px; }
-  button:hover { background: #303038; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; display: flex; flex-direction: column; }
+  button { font: inherit; color: var(--text); background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; cursor: pointer; }
+  button:hover { background: #2a2a30; }
   button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
-  #play { background: var(--accent); color: var(--accent-ink); border: none; font-size: 18px; font-weight: 600; padding: 14px 28px; border-radius: 12px; }
-  .seg { display: inline-flex; background: #26262c; border-radius: 999px; padding: 3px; border: 1px solid var(--line); }
-  .seg button { border: none; border-radius: 999px; background: transparent; padding: 8px 16px; }
-  .seg button.on { background: #0a84ff; color: #fff; }
-  .label { color: var(--muted); font-size: 13px; min-width: 70px; }
-  kbd { font: 12px ui-monospace, monospace; background: #26262c; border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; color: var(--muted); }
-  .keys { color: var(--muted); font-size: 13px; display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 16px; }
-  input, textarea, select { width: 100%; font: inherit; color: var(--text); background: #111114; border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
-  textarea { min-height: 260px; resize: vertical; font-size: 17px; line-height: 1.5; }
-  .stack { display: grid; gap: 10px; }
-  #msg { font-size: 13px; color: var(--muted); min-height: 18px; }
-  #pinView { max-width: 360px; margin: 12vh auto; text-align: center; padding: 28px; }
-  #pinView input { font-size: 32px; letter-spacing: .4em; text-align: center; margin: 16px 0; }
+  button.on { background: var(--blue); border-color: var(--blue); color: #fff; }
   .hidden { display: none !important; }
-  .mic { margin-top: 16px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: #141417; display: grid; gap: 8px; }
+
+  header { display: flex; align-items: center; gap: 10px; padding: 12px 20px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  header h1 { font-size: 16px; margin: 0 8px 0 0; font-weight: 650; }
+  .pill { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; padding: 5px 11px; border-radius: 999px; background: var(--panel2); border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+  .pill .dot { width: 8px; height: 8px; border-radius: 50%; background: #555; }
+  .pill.ok { color: var(--text); } .pill.ok .dot { background: var(--ok); }
+  .pill.warn { color: var(--accent); } .pill.warn .dot { background: var(--accent); }
+  .pill.bad { color: #ff8a80; } .pill.bad .dot { background: var(--red); }
+  .pill.blue .dot { background: var(--blue); }
+  #scriptTitle { margin-left: auto; color: var(--muted); font-size: 13px; max-width: 40vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(330px, 1fr); gap: 16px; padding: 16px 20px; max-width: 1500px; width: 100%; margin: 0 auto; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin: 0; font-weight: 650; }
+
+  /* Live script */
+  #liveCard { display: flex; flex-direction: column; min-height: 0; }
+  .cardHead { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+  .hint { font-size: 12px; color: var(--muted); }
+  #live { flex: 1; min-height: 0; overflow-y: auto; padding: 22vh 26px 45vh; font-size: 22px; line-height: 1.75; }
+  #live .para { margin: 0; }
+  #live .gap { height: .9em; }
+  #live .heading { color: #64d2ff; font-weight: 700; font-size: .8em; text-transform: uppercase; letter-spacing: .06em; margin: .8em 0 .2em; padding-top: .6em; border-top: 1px solid var(--line); cursor: pointer; }
+  .word { cursor: pointer; border-radius: 4px; padding: 0 1px; transition: color .25s, background-color .25s; }
+  .word:hover { background: rgba(255,255,255,.08); }
+  .word.read { color: #6c6c74; }
+  .word.cur { color: var(--accent); background: rgba(255,201,77,.18); }
+  .liveEmpty { padding: 40px 26px; color: var(--muted); font-size: 15px; }
+
+  /* Controls */
+  #side { display: flex; flex-direction: column; gap: 16px; min-height: 0; overflow-y: auto; }
+  .section { padding: 14px 18px; display: grid; gap: 12px; }
+  .section + .section { border-top: 1px solid var(--line); }
+  .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .label { color: var(--muted); font-size: 13px; width: 64px; flex: none; }
+  .value { color: var(--muted); font-size: 13px; min-width: 40px; }
+  #play { background: var(--accent); color: var(--accent-ink); border: none; font-size: 17px; font-weight: 650; padding: 12px 22px; border-radius: 12px; min-width: 150px; }
+  #play:hover { filter: brightness(1.05); }
+  .seg { display: inline-flex; background: var(--panel2); border: 1px solid var(--line); border-radius: 999px; padding: 3px; }
+  .seg button { border: none; background: transparent; border-radius: 999px; padding: 7px 14px; }
+  .seg button.on { background: var(--blue); }
   #micBtn.live { background: var(--red); border-color: var(--red); color: #fff; }
-  #micHeard { font-size: 15px; min-height: 22px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .meter { flex: 1; min-width: 80px; height: 8px; border-radius: 4px; background: var(--panel2); overflow: hidden; }
+  .meter > div { height: 100%; width: 0; background: linear-gradient(90deg, var(--ok), var(--accent)); transition: width .08s; }
+  #heard { font-size: 14px; color: var(--muted); min-height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #micMsg { font-size: 13px; color: var(--muted); }
-  a { color: var(--accent); }
+  #micMsg:empty { display: none; }
+  #micMsg a { color: var(--accent); }
+  #sections button { padding: 6px 10px; font-size: 13px; }
+  details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+  kbd { font: 12px ui-monospace, monospace; background: var(--panel2); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; color: var(--muted); }
+  .keys { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; font-size: 13px; color: var(--muted); margin-top: 8px; }
+
+  /* Scripts */
+  .scriptRow { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 10px; }
+  .scriptRow:hover { background: var(--panel2); }
+  .scriptRow .t { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .scriptRow.current .t { color: var(--accent); }
+  .scriptRow button { padding: 5px 10px; font-size: 13px; }
+  #scriptList { gap: 2px; }
+  input, textarea { width: 100%; font: inherit; color: var(--text); background: #101013; border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
+  textarea { min-height: 240px; resize: vertical; font-size: 16px; line-height: 1.55; }
+  .primary { background: var(--accent); color: var(--accent-ink); border: none; font-weight: 600; }
+  .primary:hover { background: var(--accent); filter: brightness(1.05); }
+  #saveMsg { font-size: 13px; color: var(--muted); }
+
+  #pinView { max-width: 360px; margin: 14vh auto; text-align: center; padding: 28px; }
+  #pinView input { font-size: 30px; letter-spacing: .4em; text-align: center; margin: 16px 0; }
+
+  @media (max-width: 900px) {
+    main { grid-template-columns: 1fr; }
+    #live { max-height: 45vh; padding: 12vh 18px 25vh; font-size: 19px; }
+    #side { overflow: visible; }
+  }
 </style>
 </head>
 <body>
 
-<section id="pinView" class="hidden">
-  <h1 style="margin:0 0 6px;font-size:22px">Prompter Remote</h1>
+<section id="pinView" class="card hidden">
+  <h1 style="margin:0 0 6px;font-size:20px">Prompter Remote</h1>
   <div id="pinHint" style="color:var(--muted)">Connecting to your phone…</div>
   <input id="pin" class="hidden" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="PIN">
-  <button id="pinGo" class="on" style="width:100%">Connect</button>
+  <button id="pinGo" class="primary" style="width:100%">Connect</button>
   <div id="pinMsg" style="color:#ff8a80;margin-top:10px;min-height:20px"></div>
 </section>
 
-<div id="app" class="hidden">
+<div id="app" class="hidden" style="display:contents">
   <header>
-    <span id="dot" class="dot"></span>
     <h1>Prompter Remote</h1>
-    <span id="conn">connecting…</span>
+    <span id="connPill" class="pill"><span class="dot"></span><span id="connText">Connecting…</span></span>
+    <span id="micPill" class="pill"><span class="dot"></span><span id="micText">Phone mic</span></span>
+    <span id="scriptTitle"></span>
   </header>
+
   <main>
-    <section>
-      <h2>Now on the phone</h2>
-      <div id="title"></div>
-      <div id="line"></div>
-      <div id="next"></div>
-      <div class="progress"><div id="bar"></div></div>
-      <div id="heard"></div>
-
-      <div class="mic">
-        <div class="row">
-          <button id="micBtn">🎙 Listen on laptop</button>
-          <span id="micState" class="label">Phone is using its own mic</span>
-        </div>
-        <div id="micHeard"></div>
-        <div id="micMsg"></div>
+    <section id="liveCard" class="card" aria-label="Live script">
+      <div class="cardHead">
+        <h2>Live script</h2>
+        <span class="hint">Click any word to make the phone continue from there</span>
       </div>
-
-      <div class="controls">
-        <div class="row">
-          <button id="play">▶ Play</button>
-          <span class="seg">
-            <button id="modeSteady">Steady</button>
-            <button id="modeVoice">Voice Follow</button>
-          </span>
-        </div>
-        <div class="row">
-          <span class="label">Position</span>
-          <button data-cmd="up" title="Back one line">↑ Line</button>
-          <button data-cmd="down" title="Forward one line">↓ Line</button>
-          <button data-cmd="top" title="Back to start">⤒ Start</button>
-        </div>
-        <div class="row" id="sectionRow" style="display:none">
-          <span class="label">Sections</span>
-          <button data-cmd="prevSection" title="Previous section (P)">⏮</button>
-          <span id="sections" class="row" style="gap:6px"></span>
-          <button data-cmd="nextSection" title="Next section (N)">⏭</button>
-        </div>
-        <div class="row">
-          <span class="label">Text</span>
-          <button data-cmd="smaller">A−</button>
-          <button data-cmd="bigger">A+</button>
-          <span id="font" class="label"></span>
-        </div>
-        <div class="row">
-          <span class="label">Speed</span>
-          <button data-cmd="slower">−</button>
-          <button data-cmd="faster">+</button>
-          <span id="speed" class="label">(Steady mode)</span>
-        </div>
-        <div class="row">
-          <span class="label">Display</span>
-          <button id="flip" data-cmd="flip">⇅ Upside-down</button>
-          <button id="mirror" data-cmd="mirror">⇆ Mirror</button>
-        </div>
-      </div>
-      <div class="keys">
-        <span><kbd>Space</kbd> play / pause</span>
-        <span><kbd>↑</kbd><kbd>↓</kbd> line</span>
-        <span><kbd>+</kbd><kbd>−</kbd> text size</span>
-        <span><kbd>[</kbd><kbd>]</kbd> speed</span>
-        <span><kbd>M</kbd> mode</span>
-        <span><kbd>T</kbd> start</span>
-        <span><kbd>L</kbd> laptop mic</span>
-        <span><kbd>N</kbd><kbd>P</kbd> next / previous section</span>
-      </div>
+      <div id="live"><div class="liveEmpty">Open a script on the phone (or from the list on the right) to see it here.</div></div>
     </section>
 
-    <section class="stack">
-      <h2>Scripts</h2>
-      <select id="scriptList"><option value="">— New script —</option></select>
-      <input id="sTitle" placeholder="Title">
-      <textarea id="sBody" placeholder="Paste or type your script here (Tenglish or Telugu)…"></textarea>
-      <div class="row">
-        <button id="send" class="on">Send to phone &amp; open</button>
-        <span id="msg"></span>
-      </div>
-    </section>
+    <div id="side">
+      <section class="card">
+        <div class="section">
+          <div class="row">
+            <button id="play">▶ Play</button>
+            <span class="seg" role="group" aria-label="Scroll mode">
+              <button id="modeSteady">Steady</button>
+              <button id="modeVoice">Voice Follow</button>
+            </span>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="row">
+            <button id="micBtn">🎙 Listen on laptop</button>
+            <div class="meter" title="Laptop mic level"><div id="level"></div></div>
+          </div>
+          <div id="heard"></div>
+          <div id="micMsg"></div>
+        </div>
+
+        <div class="section">
+          <div class="row">
+            <span class="label">Position</span>
+            <button data-cmd="up" title="Back one line (↑)">↑ Line</button>
+            <button data-cmd="down" title="Forward one line (↓)">↓ Line</button>
+            <button data-cmd="top" title="Back to start (T)">⤒ Start</button>
+          </div>
+          <div class="row hidden" id="sectionRow">
+            <span class="label">Sections</span>
+            <button data-cmd="prevSection" title="Previous section (P)">⏮</button>
+            <span id="sections" class="row" style="gap:6px"></span>
+            <button data-cmd="nextSection" title="Next section (N)">⏭</button>
+          </div>
+          <div class="row">
+            <span class="label">Text</span>
+            <button data-cmd="smaller" title="Smaller (−)">A−</button>
+            <button data-cmd="bigger" title="Bigger (+)">A+</button>
+            <span id="font" class="value"></span>
+          </div>
+          <div class="row">
+            <span class="label">Speed</span>
+            <button data-cmd="slower" title="Slower ([)">−</button>
+            <button data-cmd="faster" title="Faster (])">+</button>
+            <span id="speed" class="value"></span>
+          </div>
+          <div class="row">
+            <span class="label">Display</span>
+            <button id="flip" data-cmd="flip">⇅ Upside-down</button>
+            <button id="mirror" data-cmd="mirror">⇆ Mirror</button>
+          </div>
+          <details>
+            <summary>Keyboard shortcuts</summary>
+            <div class="keys">
+              <kbd>Space</kbd><span>Play / pause</span>
+              <kbd>↑ ↓</kbd><span>Previous / next line</span>
+              <kbd>N P</kbd><span>Next / previous section</span>
+              <kbd>T</kbd><span>Back to start</span>
+              <kbd>M</kbd><span>Steady ↔ Voice Follow</span>
+              <kbd>L</kbd><span>Laptop mic on / off</span>
+              <kbd>+ −</kbd><span>Text size</span>
+              <kbd>[ ]</kbd><span>Steady speed</span>
+            </div>
+          </details>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="cardHead">
+          <h2>Scripts</h2>
+          <button id="newScript">＋ New</button>
+        </div>
+        <div class="section" id="scriptList"></div>
+        <div class="section hidden" id="editor">
+          <input id="sTitle" placeholder="Title">
+          <textarea id="sBody" placeholder="Paste or type your script (Tenglish or Telugu). Start a line with # to mark a section."></textarea>
+          <div class="row">
+            <button id="saveOpen" class="primary">Save &amp; open on phone</button>
+            <button id="save">Save</button>
+            <button id="cancelEdit">Cancel</button>
+          </div>
+          <div id="saveMsg"></div>
+        </div>
+      </section>
+    </div>
   </main>
 </div>
 
@@ -156,10 +213,11 @@
   const $ = (id) => document.getElementById(id);
   let pin = null;
   try { pin = localStorage.getItem('prompterPin'); } catch (e) {}
+  let needPin = false;
   let status = {};
-  let failures = 0;
-  let needPin = false; // only when the phone has "Require PIN" switched on
+  let listening = false;
 
+  // ---------- HTTP (auth check, scripts, and fallback when the WebSocket is down) ----------
   async function api(path, form) {
     const opts = { headers: { 'X-Pin': pin || '' } };
     if (form) {
@@ -172,15 +230,13 @@
       const wasAsked = needPin;
       needPin = true;
       showPin(r.status === 403 ? 'Too many wrong PINs — wait a minute and try again.'
-        : wasAsked ? 'Wrong PIN. Check the PIN in the phone\'s Remote screen.'
-        : 'This phone has “Require PIN” on. Enter the PIN from the phone\'s Remote screen.');
+        : wasAsked ? 'Wrong PIN. Check the PIN in the phone’s Remote screen.'
+        : 'This phone has “Require PIN” on. Enter the PIN from the phone’s Remote screen.');
       throw new Error('auth');
     }
     if (!r.ok) throw new Error('HTTP ' + r.status);
     return r.json();
   }
-
-  const cmd = (c, value) => api('/api/cmd', value == null ? { cmd: c } : { cmd: c, value }).then(poll).catch(() => {});
 
   function showPin(message) {
     $('app').classList.add('hidden');
@@ -194,51 +250,181 @@
 
   async function connect() {
     try {
-      await api('/api/status');
-      try {
-        if (needPin) localStorage.setItem('prompterPin', pin);
-      } catch (e) {}
+      status = await api('/api/status');
+      try { if (needPin) localStorage.setItem('prompterPin', pin); } catch (e) {}
       $('pinView').classList.add('hidden');
       $('app').classList.remove('hidden');
+      render(status);
       loadScripts();
-      poll();
+      openSocket();
     } catch (e) {
-      if (e.message !== 'auth') {
-        showPin('Cannot reach the phone. Check that Remote is still on and the laptop is on the same Wi-Fi.');
+      if (e.message !== 'auth') showPin('Cannot reach the phone. Check that Remote is still on and the laptop is on the same Wi-Fi.');
+    }
+  }
+  $('pinGo').onclick = () => { if (needPin) pin = $('pin').value.trim(); connect(); };
+  $('pin').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('pinGo').click(); });
+
+  // ---------- WebSocket: one open connection for commands, mic words and live status ----------
+  let ws = null, wsFails = 0, pollTimer = null, retryTimer = null;
+
+  function setConn(kind, text) {
+    $('connPill').className = 'pill ' + kind;
+    $('connText').textContent = text;
+  }
+
+  function openSocket() {
+    clearTimeout(retryTimer);
+    const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws' + (pin ? '?pin=' + encodeURIComponent(pin) : '');
+    let s;
+    try { s = new WebSocket(url); } catch (e) { onSocketDown(); return; }
+    ws = s;
+    s.onopen = () => { wsFails = 0; stopPolling(); setConn('ok', 'Connected'); };
+    s.onmessage = (e) => {
+      const tab = e.data.indexOf('\t');
+      if (e.data.slice(0, tab) === 'status') { try { status = JSON.parse(e.data.slice(tab + 1)); render(status); } catch (err) {} }
+    };
+    s.onclose = () => { if (ws === s) { ws = null; onSocketDown(); } };
+  }
+
+  function onSocketDown() {
+    wsFails++;
+    // Keep working over plain requests meanwhile, and keep trying to reconnect.
+    startPolling();
+    setConn(wsFails > 3 ? 'bad' : 'warn', wsFails > 3 ? 'Reconnecting… (phone not reachable?)' : 'Reconnecting…');
+    retryTimer = setTimeout(openSocket, Math.min(1000 * wsFails, 5000));
+  }
+
+  function startPolling() {
+    if (pollTimer) return;
+    pollTimer = setInterval(async () => {
+      try { status = await api('/api/status'); render(status); if (!ws || ws.readyState !== 1) setConn('warn', 'Connected (slow mode)'); } catch (e) {}
+    }, 600);
+  }
+  function stopPolling() { clearInterval(pollTimer); pollTimer = null; }
+
+  setInterval(() => { if (ws && ws.readyState === 1) ws.send('ping'); }, 2000);
+
+  function cmd(c, value) {
+    if (ws && ws.readyState === 1) { ws.send('cmd\t' + c + '\t' + (value == null ? '' : value)); return Promise.resolve(); }
+    return api('/api/cmd', value == null ? { cmd: c } : { cmd: c, value: String(value) })
+      .then(() => api('/api/status')).then((s) => { status = s; render(s); }).catch(() => {});
+  }
+
+  function sendHeard(text) {
+    if (ws && ws.readyState === 1) ws.send('heard\t' + text);
+    else api('/api/heard', { text }).catch(() => {});
+  }
+
+  // ---------- Live script ----------
+  const WORD = /[\p{L}\p{M}\p{N}‌‍]+/gu;
+  const EMPTY = '<div class="liveEmpty">Open a script on the phone (or from the list on the right) to see it here.</div>';
+  let liveKey = '', wordEls = [], offsetToIndex = new Map(), curIndex = -1, userScrolledAt = 0;
+
+  async function loadLive(id, rev) {
+    const key = id + ':' + rev;
+    if (key === liveKey) return;
+    liveKey = key;
+    try {
+      const s = await api('/api/script?id=' + encodeURIComponent(id));
+      renderLive(s.body);
+    } catch (e) { liveKey = ''; }
+  }
+
+  function renderLive(body) {
+    const live = $('live');
+    live.innerHTML = '';
+    wordEls = []; offsetToIndex = new Map(); curIndex = -1;
+    let offset = 0;
+    for (const line of body.split('\n')) {
+      const lineStart = offset;
+      offset += line.length + 1;
+      if (/^\s*#/.test(line)) {
+        const h = document.createElement('div');
+        h.className = 'heading';
+        h.textContent = line.replace(/^\s*#+\s*/, '') || 'Section';
+        h.dataset.o = String(lineStart + line.length);
+        live.appendChild(h);
+        continue;
       }
+      if (!line.trim()) { const g = document.createElement('div'); g.className = 'gap'; live.appendChild(g); continue; }
+      const p = document.createElement('p');
+      p.className = 'para';
+      let last = 0;
+      for (const m of line.matchAll(WORD)) {
+        if (m.index > last) p.appendChild(document.createTextNode(line.slice(last, m.index)));
+        const span = document.createElement('span');
+        span.className = 'word';
+        span.textContent = m[0];
+        span.dataset.o = String(lineStart + m.index);
+        offsetToIndex.set(lineStart + m.index, wordEls.length);
+        wordEls.push(span);
+        p.appendChild(span);
+        last = m.index + m[0].length;
+      }
+      if (last < line.length) p.appendChild(document.createTextNode(line.slice(last)));
+      live.appendChild(p);
+    }
+    highlight(status.offset, true);
+  }
+
+  function highlight(offset, force) {
+    if (!wordEls.length || offset == null) return;
+    let idx = offsetToIndex.get(offset);
+    if (idx == null) { idx = wordEls.findIndex((w) => Number(w.dataset.o) >= offset); if (idx < 0) idx = wordEls.length; }
+    if (idx === curIndex && !force) return;
+    const prev = curIndex < 0 ? 0 : curIndex;
+    // Only touch the words between the old and new position.
+    const lo = force ? 0 : Math.min(prev, idx), hi = force ? wordEls.length - 1 : Math.min(Math.max(prev, idx), wordEls.length - 1);
+    for (let i = lo; i <= hi; i++) {
+      wordEls[i].classList.toggle('read', i < idx);
+      wordEls[i].classList.toggle('cur', i === idx);
+    }
+    curIndex = idx;
+    // Keep the current word about a third of the way down, unless the user just scrolled.
+    const el = wordEls[Math.min(idx, wordEls.length - 1)];
+    if (el && Date.now() - userScrolledAt > 4000) {
+      const live = $('live');
+      live.scrollTo({ top: el.offsetTop - live.clientHeight * 0.33, behavior: force ? 'auto' : 'smooth' });
     }
   }
 
-  $('pinGo').onclick = () => {
-    if (needPin) pin = $('pin').value.trim();
-    connect();
-  };
-  $('pin').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('pinGo').click(); });
+  $('live').addEventListener('wheel', () => { userScrolledAt = Date.now(); }, { passive: true });
+  $('live').addEventListener('touchmove', () => { userScrolledAt = Date.now(); }, { passive: true });
+  $('live').addEventListener('click', (e) => {
+    const t = e.target.closest('[data-o]');
+    if (!t) return;
+    userScrolledAt = 0;
+    cmd('seek', t.dataset.o);
+  });
 
+  // ---------- Rendering status ----------
+  let sectionKey = '';
   function render(s) {
     const onPrompter = s.screen === 'prompter';
-    $('dot').className = 'dot' + (s.hearing ? ' hear' : s.running ? ' on' : '');
-    $('title').textContent = onPrompter ? (s.title || '') : 'Phone is on the script list — send or pick a script to open it.';
-    $('line').textContent = onPrompter ? (s.line || '') : '';
-    $('next').textContent = onPrompter ? (s.next || '') : '';
-    $('bar').style.width = Math.round((s.progress || 0) * 100) + '%';
-    $('heard').textContent = s.heard ? '🎙 ' + s.heard : '';
-    $('play').textContent = s.countdown > 0 ? 'Starting in ' + s.countdown + '…'
-      : s.running ? '❚❚ Pause' : '▶ Play';
-    renderSections(onPrompter ? (s.sections || []) : [], s.section);
+    $('scriptTitle').textContent = onPrompter ? (s.title || '') : 'Phone is on the script list';
+    if (onPrompter && s.scriptId) {
+      loadLive(s.scriptId, s.rev);
+    } else if (!onPrompter && liveKey) {
+      liveKey = ''; wordEls = []; curIndex = -1;
+      $('live').innerHTML = EMPTY;
+    }
+    highlight(s.offset);
+
+    $('play').textContent = s.countdown > 0 ? 'Starting in ' + s.countdown + '…' : s.running ? '❚❚ Pause' : '▶ Play';
     $('modeSteady').classList.toggle('on', s.mode === 'steady');
     $('modeVoice').classList.toggle('on', s.mode !== 'steady');
     $('font').textContent = s.fontSize ? Math.round(s.fontSize) + ' pt' : '';
-    $('speed').textContent = s.speed ? Math.round(s.speed) + (s.mode === 'steady' ? '' : '  (used in Steady mode)') : '';
+    $('speed').textContent = s.speed ? Math.round(s.speed) + (s.mode === 'steady' ? '' : ' · used in Steady') : '';
     $('flip').classList.toggle('on', !!s.flip);
     $('mirror').classList.toggle('on', !!s.mirror);
-    if (!window.isSecureContext) explainSecureContext();
-    $('micState').textContent = s.laptopMic ? 'Phone is following the laptop mic' : 'Phone is using its own mic';
-  }
 
-  let sectionKey = '';
-  function renderSections(list, current) {
-    $('sectionRow').style.display = list.length ? '' : 'none';
+    $('micPill').className = 'pill ' + (s.mode === 'steady' ? '' : s.laptopMic ? 'ok blue' : 'ok');
+    $('micText').textContent = s.mode === 'steady' ? 'Steady scroll (no mic)'
+      : s.laptopMic ? 'Following laptop mic' : (s.hearing ? 'Phone mic · hearing you' : 'Phone mic');
+    if (!listening) $('heard').textContent = s.heard ? (s.laptopMic ? '💻 ' : '🎙 ') + s.heard : '';
+
+    const list = onPrompter ? (s.sections || []) : [];
+    $('sectionRow').classList.toggle('hidden', !list.length);
     const key = JSON.stringify(list);
     if (key !== sectionKey) {
       sectionKey = key;
@@ -251,63 +437,70 @@
         box.appendChild(b);
       });
     }
-    [...$('sections').children].forEach((b, i) => b.classList.toggle('on', i === current));
+    [...$('sections').children].forEach((b, i) => b.classList.toggle('on', i === s.section));
+    document.querySelectorAll('.scriptRow').forEach((r) => r.classList.toggle('current', onPrompter && r.dataset.id === s.scriptId));
+    if (!window.isSecureContext) explainSecureContext();
   }
 
-  async function poll() {
-    try {
-      status = await api('/api/status');
-      failures = 0;
-      $('conn').textContent = 'connected';
-      render(status);
-    } catch (e) {
-      if (e.message === 'auth') return;
-      failures++;
-      $('conn').textContent = failures > 2 ? 'phone not reachable — is Remote still on?' : 'reconnecting…';
-      $('dot').className = 'dot';
-    }
-  }
-  setInterval(() => { if (!$('app').classList.contains('hidden')) poll(); }, 500);
-
+  // ---------- Scripts ----------
+  let editingId = '';
   async function loadScripts() {
     try {
       const list = await api('/api/scripts');
-      const sel = $('scriptList');
-      const keep = sel.value;
-      sel.innerHTML = '<option value="">— New script —</option>';
+      const box = $('scriptList');
+      box.innerHTML = '';
+      if (!list.length) box.innerHTML = '<div class="hint">No scripts yet.</div>';
       for (const s of list) {
-        const o = document.createElement('option');
-        o.value = s.id; o.textContent = s.title || '(untitled)';
-        sel.appendChild(o);
+        const row = document.createElement('div');
+        row.className = 'scriptRow' + (s.id === status.scriptId && status.screen === 'prompter' ? ' current' : '');
+        row.dataset.id = s.id;
+        const t = document.createElement('span');
+        t.className = 't';
+        t.textContent = s.title || '(untitled)';
+        const open = document.createElement('button');
+        open.textContent = 'Open';
+        open.title = 'Open on the phone';
+        open.onclick = () => cmd('openScript', s.id);
+        const edit = document.createElement('button');
+        edit.textContent = 'Edit';
+        edit.onclick = () => editScript(s.id);
+        row.append(t, open, edit);
+        box.appendChild(row);
       }
-      sel.value = keep;
     } catch (e) {}
   }
 
-  $('scriptList').onchange = async () => {
-    const id = $('scriptList').value;
-    if (!id) { $('sTitle').value = ''; $('sBody').value = ''; return; }
-    try {
-      const s = await api('/api/script?id=' + encodeURIComponent(id));
-      $('sTitle').value = s.title; $('sBody').value = s.body;
-    } catch (e) {}
-  };
+  async function editScript(id) {
+    editingId = id || '';
+    $('saveMsg').textContent = '';
+    if (id) {
+      try { const s = await api('/api/script?id=' + encodeURIComponent(id)); $('sTitle').value = s.title; $('sBody').value = s.body; } catch (e) { return; }
+    } else { $('sTitle').value = ''; $('sBody').value = ''; }
+    $('editor').classList.remove('hidden');
+    $('sBody').focus();
+  }
 
-  $('send').onclick = async () => {
+  async function saveScript(open) {
     const body = $('sBody').value;
-    if (!body.trim()) { $('msg').textContent = 'Script is empty.'; return; }
-    $('msg').textContent = 'Sending…';
+    if (!body.trim()) { $('saveMsg').textContent = 'The script is empty.'; return; }
+    $('saveMsg').textContent = 'Saving…';
     try {
-      const r = await api('/api/script', { id: $('scriptList').value, title: $('sTitle').value, body });
-      await loadScripts();
-      $('scriptList').value = r.id;
-      $('msg').textContent = 'Opened on the phone ✓';
-    } catch (e) { $('msg').textContent = 'Could not send.'; }
-  };
+      const r = await api('/api/script', { id: editingId, title: $('sTitle').value, body, open: open ? '1' : '0' });
+      editingId = r.id;
+      $('saveMsg').textContent = open ? 'Saved and opened on the phone ✓' : 'Saved ✓';
+      liveKey = ''; // reload the live view if it shows this script
+      loadScripts();
+    } catch (e) { $('saveMsg').textContent = 'Could not save.'; }
+  }
+  $('newScript').onclick = () => editScript('');
+  $('save').onclick = () => saveScript(false);
+  $('saveOpen').onclick = () => saveScript(true);
+  $('cancelEdit').onclick = () => $('editor').classList.add('hidden');
 
-  // ---- Laptop microphone: recognise Telugu here and send the words to the phone ----
+  // ---------- Laptop microphone ----------
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  let rec = null, listening = false, finals = '', pending = null, lastSent = '', sendTimer = null, beatTimer = null;
+  let rec = null, finals = '', lastSent = '', beatTimer = null;
+  let audioCtx = null, micStream = null, levelRaf = 0;
   const lastWords = (t, n) => t.trim().split(/\s+/).filter(Boolean).slice(-n).join(' ');
   const micMsg = (html) => { $('micMsg').innerHTML = html || ''; };
 
@@ -316,24 +509,38 @@
       micMsg('Chrome blocked the microphone. Click the icon at the left of the address bar, allow <b>Microphone</b>, then click Listen again.');
       return;
     }
-    // Plain http page: point at the phone's https address, where Chrome allows the mic.
     const u = status.httpsPort ? 'https://' + location.hostname + ':' + status.httpsPort + '/' : '';
-    micMsg('Chrome only allows the laptop mic on the secure address. ' +
-      (u ? 'Open <a href="' + u + '">' + u + '</a>' : 'Open the https address shown in the phone’s Remote screen') +
-      '. The first time, Chrome warns “Your connection is not private”: click <b>Advanced → Proceed</b>.');
+    micMsg('The laptop mic needs the secure address. ' +
+      (u ? 'Open <a href="' + u + '">' + u + '</a>' : 'Open the https address from the phone’s Remote screen') +
+      ' — the first time, Chrome warns “not private”: click <b>Advanced → Proceed</b>.');
   }
 
-  function sendHeard(text) {
-    return api('/api/heard', { text }).catch(() => {});
+  async function startLevel() {
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioCtx = new AudioContext();
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 512;
+      audioCtx.createMediaStreamSource(micStream).connect(analyser);
+      const data = new Uint8Array(analyser.fftSize);
+      const tick = () => {
+        analyser.getByteTimeDomainData(data);
+        let sum = 0;
+        for (const v of data) sum += (v - 128) * (v - 128);
+        const rms = Math.sqrt(sum / data.length) / 128;
+        $('level').style.width = Math.min(100, rms * 400) + '%';
+        levelRaf = requestAnimationFrame(tick);
+      };
+      tick();
+    } catch (e) {}
   }
 
-  function queue(text) {
-    pending = text;
-    if (!sendTimer) sendTimer = setTimeout(() => {
-      sendTimer = null;
-      if (pending !== null && pending !== lastSent) { lastSent = pending; sendHeard(pending); }
-      pending = null;
-    }, 80);
+  function stopLevel() {
+    cancelAnimationFrame(levelRaf);
+    $('level').style.width = '0';
+    if (micStream) micStream.getTracks().forEach((t) => t.stop());
+    if (audioCtx) audioCtx.close();
+    micStream = null; audioCtx = null;
   }
 
   function startMic() {
@@ -353,8 +560,8 @@
         else interim += ' ' + r[0].transcript;
       }
       const text = lastWords(finals + ' ' + interim, 12);
-      $('micHeard').textContent = '💻 ' + text;
-      queue(text);
+      $('heard').textContent = '💻 ' + text;
+      if (text !== lastSent) { lastSent = text; sendHeard(text); } // sent straight away
     };
     rec.onerror = (e) => {
       if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { stopMic(); explainSecureContext(); }
@@ -362,12 +569,14 @@
       else if (e.error === 'network') micMsg('Speech service unreachable — the laptop needs internet. Retrying…');
     };
     // Chrome ends sessions after silences or about a minute; keep it going.
-    rec.onend = () => { if (listening) setTimeout(() => { try { rec.start(); } catch (err) {} }, 150); };
+    rec.onend = () => { if (listening) setTimeout(() => { try { rec.start(); } catch (err) {} }, 100); };
     rec.onstart = () => micMsg('');
     try { rec.start(); } catch (err) {}
+    startLevel();
     beatTimer = setInterval(() => sendHeard(''), 1500); // tells the phone the laptop mic is live
     sendHeard('');
-    cmd('mode', 'voice').then(() => { if (!status.running) cmd('play'); });
+    if (status.mode === 'steady') cmd('mode', 'voice');
+    if (!status.running && !(status.countdown > 0)) cmd('play');
     $('micBtn').textContent = '■ Stop laptop mic';
     $('micBtn').classList.add('live');
   }
@@ -376,14 +585,17 @@
     listening = false;
     clearInterval(beatTimer);
     try { rec && rec.stop(); } catch (err) {}
+    stopLevel();
     $('micBtn').textContent = '🎙 Listen on laptop';
     $('micBtn').classList.remove('live');
-    $('micHeard').textContent = '';
+    $('heard').textContent = '';
   }
 
   $('micBtn').onclick = () => (listening ? stopMic() : startMic());
 
-  $('play').onclick = () => cmd(status.running || status.countdown > 0 ? 'pause' : 'play');
+  // ---------- Buttons and keys ----------
+  const playPause = () => cmd(status.running || status.countdown > 0 ? 'pause' : 'play');
+  $('play').onclick = playPause;
   $('modeSteady').onclick = () => cmd('mode', 'steady');
   $('modeVoice').onclick = () => cmd('mode', 'voice');
   document.querySelectorAll('[data-cmd]').forEach((b) => { b.onclick = () => cmd(b.dataset.cmd); });
@@ -392,14 +604,13 @@
     const t = e.target.tagName;
     if (t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT' || e.metaKey || e.ctrlKey || e.altKey) return;
     const map = {
-      ' ': () => cmd(status.running || status.countdown > 0 ? 'pause' : 'play'),
-      n: () => cmd('nextSection'), p: () => cmd('prevSection'),
+      ' ': playPause,
       ArrowUp: () => cmd('up'), ArrowDown: () => cmd('down'),
       '+': () => cmd('bigger'), '=': () => cmd('bigger'), '-': () => cmd('smaller'),
       '[': () => cmd('slower'), ']': () => cmd('faster'),
       m: () => cmd('mode', status.mode === 'steady' ? 'voice' : 'steady'),
-      t: () => cmd('top'),
-      l: () => $('micBtn').click(),
+      t: () => cmd('top'), l: () => $('micBtn').click(),
+      n: () => cmd('nextSection'), p: () => cmd('prevSection'),
     };
     const f = map[e.key] || map[e.key.toLowerCase()];
     if (f) { e.preventDefault(); f(); }

@@ -37,13 +37,14 @@ class MainActivity : ComponentActivity() {
                 var scripts by remember { mutableStateOf(store.loadScripts()) }
                 var settings by remember { mutableStateOf(store.loadSettings()) }
                 var showRemote by remember { mutableStateOf(false) }
-                val remote = remember { RemoteHub(store, remotePage) { assets.open("remote-tls.p12") } }
+                val remote = remember { RemoteHub(this, store, remotePage) { assets.open("remote-tls.p12") } }
 
                 DisposableEffect(remote) { onDispose { remote.stop() } }
 
                 // A script sent from the laptop opens straight away.
                 LaunchedEffect(remote) {
                     remote.commands.collect { c ->
+                        if (c is RemoteCommand.ScriptsChanged) scripts = store.loadScripts()
                         if (c is RemoteCommand.OpenScript) {
                             scripts = store.loadScripts()
                             scripts.find { it.id == c.id }?.let { screen = Screen.Prompt(it) }

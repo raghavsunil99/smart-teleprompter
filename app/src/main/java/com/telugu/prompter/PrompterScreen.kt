@@ -108,8 +108,6 @@ private const val FADE_WORDS = 4
 private val UpcomingLineColor = Color(0xFFC8C8C8)
 private val HeadingColor = Color(0xFF64D2FF)
 private val HEADING_LINE = Regex("(?m)^[ \\t]*#.*$")
-/** A blank line between paragraphs: newline, optional spaces, newline. */
-private val PARAGRAPH_BREAK = Regex("\\n[ \\t]*\\n")
 private val ReadingBand = Color(0x66B3261E)
 private val BandMarker = Color(0xFFE5534B)
 private val ToggleBlue = Color(0xFF0A84FF)
@@ -315,6 +313,18 @@ fun PrompterScreen(
 
     fun currentSection(): Int = matcher.sectionAt(currentWordIndex())
 
+    /** Continue from the word at (or just after) a character offset, e.g. a line clicked on the laptop. */
+    fun seekTo(offset: Int) {
+        val idx = matcher.words.indexOfFirst { it.end > offset }.let { if (it < 0) matcher.words.size else it }
+        resync(idx)
+        resumed = false
+        if (mode == Mode.STEADY) {
+            val l = layout ?: return
+            val line = l.getLineForOffset(offset.coerceIn(0, script.body.length))
+            scope.launch { scroll.animateScrollTo(l.getLineTop(line).roundToInt()) }
+        }
+    }
+
     val isTeleprompter = settings.flipVertical && settings.orientation == PrompterSettings.ORIENTATION_LANDSCAPE
     fun toggleTeleprompter() {
         onSettingsChange(
@@ -341,6 +351,7 @@ fun PrompterScreen(
             "flip" -> onSettingsChange(s.copy(flipVertical = !s.flipVertical))
             "mirror" -> onSettingsChange(s.copy(mirror = !s.mirror))
             "section" -> value?.toIntOrNull()?.let { jumpToSection(it) }
+            "seek" -> value?.toIntOrNull()?.let { offset -> seekTo(offset) }
             "nextSection" -> jumpToSection((currentSection() + 1).coerceAtMost(matcher.sections.size - 1))
             "prevSection" -> {
                 // Like a music player: back to this section's start, or the previous one if already there.
@@ -389,6 +400,10 @@ fun PrompterScreen(
             remote.status = Json.obj(
                 "screen" to "prompter",
                 "title" to script.title,
+                "scriptId" to script.id,
+                "rev" to script.body.hashCode(),
+                // Character offset of the word being read, for the laptop's live script view.
+                "offset" to (matcher.words.getOrNull(currentWordIndex())?.start ?: script.body.length),
                 "running" to running,
                 "countdown" to countdownLeft,
                 "sections" to matcher.sections.map { it.title },
@@ -405,7 +420,7 @@ fun PrompterScreen(
                 "flip" to s.flipVertical,
                 "mirror" to s.mirror,
             )
-            delay(250)
+            delay(100) // the laptop page shows the position at most ~0.2 s behind
         }
     }
 
@@ -430,21 +445,6 @@ fun PrompterScreen(
         c.hide(WindowInsetsCompat.Type.systemBars())
     }
 
-    // For each word, the last word of its paragraph: prediction stops there instead of drifting
-    // into the blank gap before the next paragraph.
-    val paragraphEnd = remember(matcher) {
-        val n = matcher.words.size
-        val ends = IntArray(n)
-        var end = n - 1
-        for (i in n - 1 downTo 0) {
-            if (i < n - 1) {
-                val gap = script.body.substring(matcher.words[i].end, matcher.words[i + 1].start)
-                if (PARAGRAPH_BREAK.containsMatchIn(gap) || gap.contains('#')) end = i
-            }
-            ends[i] = end
-        }
-        ends
-    }
 
     // Y position (px, relative to the text top) of each word, interpolated across its line,
     // so the scroll moves steadily as you read along a line instead of jumping line by line.
@@ -476,8 +476,7 @@ fun PrompterScreen(
             val t = withFrameNanos { it }
             val dt = ((t - last) / 1e9f).coerceAtMost(0.1f)
             last = t
-            val limit = paragraphEnd.getOrElse(position.coerceAtMost(matcher.words.size - 1)) { matcher.words.size }
-            val p = follower.step(System.nanoTime(), dt, isListening, matcher.words.size, limit)
+            val p = follower.step(System.nanoTime(), dt, isListening, matcher.words.size)
             // Only drive the scroll when the reading position moves, so a paused prompter can be finger-scrolled.
             if (p == lastP) continue
             lastP = p

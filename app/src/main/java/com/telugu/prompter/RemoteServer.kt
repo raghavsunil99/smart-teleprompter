@@ -1,10 +1,13 @@
 package com.telugu.prompter
 
 import fi.iki.elonen.NanoHTTPD
+import fi.iki.elonen.NanoWSD
+import java.io.IOException
 import java.io.InputStream
 import java.security.KeyStore
 import javax.net.ssl.KeyManagerFactory
 import javax.net.ssl.SSLServerSocketFactory
+import java.util.concurrent.CopyOnWriteArraySet
 
 /**
  * Tiny web server the laptop talks to over Wi-Fi. Plain JVM code (no Android APIs) so it
@@ -17,12 +20,16 @@ import javax.net.ssl.SSLServerSocketFactory
  *   GET  /api/script    ?id=  one script
  *   POST /api/script    id=&title=&body=  save (and open on the phone)
  *   POST /api/heard     text=  words heard by the laptop's mic (empty text = "still listening")
+ *   WS   /ws?pin=       one open connection for all of the above, with no per-request cost:
+ *                       laptop → phone: "cmd\t<name>\t<value>", "heard\t<text>", "ping"
+ *                       phone → laptop: "status\t<json>" whenever the status changes
  *
  * When a PIN is set ([pin] returns non-null), every /api call needs it in the X-Pin header,
  * and too many wrong PINs lock the API for a minute. With no PIN, anyone on the Wi-Fi can connect.
  * The same server also runs over https (see [sslFactory]): Chrome only allows the laptop
  * microphone on secure pages, and a phone on Wi-Fi can't have a trusted certificate, so it
  * uses a bundled self-signed one that the user accepts once in Chrome.
+ * The plain request API stays as a fallback for when the WebSocket can't connect.
  */
 class RemoteServer(
     port: Int,
@@ -31,15 +38,15 @@ class RemoteServer(
     private val page: String,
     private val api: Api,
     private val clock: () -> Long = System::currentTimeMillis,
-) : NanoHTTPD(port) {
+) : NanoWSD(port) {
 
     interface Api {
         fun statusJson(): String
         fun command(cmd: String, value: String?): Boolean
         fun scriptsJson(): String
         fun scriptJson(id: String): String?
-        /** Saves the script, opens it on the phone, and returns its id. */
-        fun saveScript(id: String?, title: String, body: String): String
+        /** Saves the script (opening it on the phone if [open]) and returns its id. */
+        fun saveScript(id: String?, title: String, body: String, open: Boolean = true): String
         /** Words heard by the laptop's mic; blank text is just a heartbeat. */
         fun heard(text: String)
     }
@@ -47,7 +54,88 @@ class RemoteServer(
     private var failures = 0
     private var lockedUntil = 0L
 
+    private val sockets = CopyOnWriteArraySet<RemoteSocket>()
+    @Volatile private var pushing = false
+
+    /** One connected laptop page. */
+    private inner class RemoteSocket(handshake: IHTTPSession) : WebSocket(handshake) {
+        override fun onOpen() {
+            sockets += this
+            trySend("status\t" + api.statusJson())
+        }
+
+        override fun onClose(code: WebSocketFrame.CloseCode?, reason: String?, initiatedByRemote: Boolean) {
+            sockets -= this
+        }
+
+        override fun onMessage(message: WebSocketFrame) = handleMessage(message.textPayload ?: "")
+
+        override fun onPong(pong: WebSocketFrame?) {}
+
+        override fun onException(exception: IOException?) {
+            sockets -= this
+        }
+
+        fun trySend(text: String) {
+            try {
+                send(text)
+            } catch (_: IOException) {
+                sockets -= this
+            }
+        }
+    }
+
+    /** Applies one WebSocket message from the laptop page. */
+    internal fun handleMessage(text: String) {
+        val parts = text.split('\t', limit = 3)
+        when (parts[0]) {
+            "cmd" -> parts.getOrNull(1)?.let { api.command(it, parts.getOrNull(2)?.ifEmpty { null }) }
+            "heard" -> api.heard(parts.getOrElse(1) { "" })
+            // "ping": just keeps the connection (and its read timeout) alive.
+        }
+    }
+
+    override fun openWebSocket(handshake: IHTTPSession): WebSocket = RemoteSocket(handshake)
+
     override fun serve(session: IHTTPSession): Response {
+        val isWebSocket = session.headers["upgrade"].equals("websocket", ignoreCase = true)
+        if (isWebSocket) {
+            if (session.uri != "/ws") return error(Response.Status.NOT_FOUND, "not found")
+            authError(session.parameters["pin"]?.firstOrNull())?.let { return it }
+        }
+        return super.serve(session)
+    }
+
+    /** Starts the server and the status pusher for connected WebSockets. */
+    override fun start(timeout: Int, daemon: Boolean) {
+        super.start(timeout, daemon)
+        pushing = true
+        Thread({
+            var last = ""
+            var lastSent = 0L
+            while (pushing) {
+                if (sockets.isNotEmpty()) {
+                    val s = api.statusJson()
+                    val now = System.currentTimeMillis()
+                    if (s != last || now - lastSent > 1000) { // on change, plus a 1 s keep-alive
+                        sockets.forEach { it.trySend("status\t$s") }
+                        last = s
+                        lastSent = now
+                    }
+                }
+                Thread.sleep(PUSH_INTERVAL_MS)
+            }
+        }, "remote-status-push").apply { isDaemon = true }.start()
+    }
+
+    override fun stop() {
+        pushing = false
+        sockets.forEach { runCatching { it.close(WebSocketFrame.CloseCode.GoingAway, "stopped", false) } }
+        sockets.clear()
+        super.stop()
+    }
+
+    override fun serveHttp(session: IHTTPSession): Response {
         val uri = session.uri
         if (session.method == Method.OPTIONS) return text(Response.Status.NO_CONTENT, "text/plain", "")
         if (uri == "/" || uri == "/index.html") return text(Response.Status.OK, "text/html; charset=utf-8", page)
@@ -75,7 +163,7 @@ class RemoteServer(
                 uri == "/api/script" && session.method == Method.POST -> {
                     val p = formParams(session)
                     val body = p["body"]?.takeIf { it.isNotBlank() } ?: return error(Response.Status.BAD_REQUEST, "body required")
-                    val id = api.saveScript(p["id"]?.takeIf { it.isNotBlank() }, p["title"].orEmpty(), body)
+                    val id = api.saveScript(p["id"]?.takeIf { it.isNotBlank() }, p["title"].orEmpty(), body, open = p["open"] != "0")
                     json("{\"ok\":true,\"id\":${Json.str(id)}}")
                 }
                 else -> error(Response.Status.NOT_FOUND, "not found")
@@ -126,6 +214,7 @@ class RemoteServer(
         const val MAX_FAILURES = 10
         const val LOCK_MILLIS = 60_000L
         const val TLS_PASSWORD = "prompter-remote"
+        private const val PUSH_INTERVAL_MS = 100L
 
         /** TLS socket factory from the bundled PKCS#12 keystore (call [makeSecure] with it). */
         fun sslFactory(p12: InputStream, password: String = TLS_PASSWORD): SSLServerSocketFactory {

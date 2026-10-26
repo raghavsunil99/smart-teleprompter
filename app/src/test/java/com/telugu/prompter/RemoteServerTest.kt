@@ -29,7 +29,7 @@ class RemoteServerTest {
         }
         override fun scriptsJson() = Json.arr(listOf(Json.obj("id" to "a", "title" to "Intro")))
         override fun scriptJson(id: String) = if (id == "a") Json.obj("id" to "a", "title" to "Intro", "body" to "x") else null
-        override fun saveScript(id: String?, title: String, body: String): String {
+        override fun saveScript(id: String?, title: String, body: String, open: Boolean): String {
             saved += Triple(id, title, body)
             return id ?: "new-id"
         }
@@ -178,5 +178,47 @@ class RemoteServerTest {
     fun jsonEscapes() {
         assertEquals("{\"a\":\"x\\\"y\\nz\",\"b\":3,\"c\":null}", Json.obj("a" to "x\"y\nz", "b" to 3, "c" to null))
         assertEquals("{\"s\":[\"Intro\",\"Tip \\\"1\\\"\"],\"e\":[]}", Json.obj("s" to listOf("Intro", "Tip \"1\""), "e" to emptyList<String>()))
+    }
+
+    /** Opens a WebSocket with OkHttp; returns it plus the queue of text messages received. */
+    private fun openSocket(path: String): Pair<okhttp3.WebSocket, java.util.concurrent.LinkedBlockingQueue<String>> {
+        val received = java.util.concurrent.LinkedBlockingQueue<String>()
+        val opened = java.util.concurrent.CompletableFuture<Boolean>()
+        val ws = okhttp3.OkHttpClient().newWebSocket(
+            okhttp3.Request.Builder().url("ws://127.0.0.1:$port$path").build(),
+            object : okhttp3.WebSocketListener() {
+                override fun onOpen(webSocket: okhttp3.WebSocket, response: okhttp3.Response) { opened.complete(true) }
+                override fun onMessage(webSocket: okhttp3.WebSocket, text: String) { received += text }
+                override fun onFailure(webSocket: okhttp3.WebSocket, t: Throwable, response: okhttp3.Response?) { opened.complete(false) }
+            },
+        )
+        check(opened.get(5, java.util.concurrent.TimeUnit.SECONDS)) { "WebSocket did not open" }
+        return ws to received
+    }
+
+    @Test
+    fun webSocketCarriesCommandsWordsAndStatus() {
+        pin = null
+        val (ws, received) = openSocket("/ws")
+        // Status arrives as soon as we connect.
+        val first = received.poll(3, java.util.concurrent.TimeUnit.SECONDS)
+        assertTrue("got: $first", first != null && first.startsWith("status\t") && first.contains("Namaskaram"))
+        ws.send("cmd\tplay")
+        ws.send("cmd\tup\t1")
+        ws.send("heard\tనమస్కారం అందరికీ")
+        ws.send("ping")
+        val deadline = System.currentTimeMillis() + 3000
+        while ((commands.size < 2 || heard.isEmpty()) && System.currentTimeMillis() < deadline) Thread.sleep(20)
+        assertEquals(listOf("play" to null, "up" to "1"), commands)
+        assertEquals(listOf("నమస్కారం అందరికీ"), heard)
+        ws.close(1000, "bye")
+    }
+
+    @Test
+    fun webSocketNeedsPinWhenSet() {
+        pin = "4321"
+        assertTrue("wrong PIN must not connect", runCatching { openSocket("/ws?pin=0000") }.isFailure)
+        val (good, _) = openSocket("/ws?pin=4321")
+        good.close(1000, "bye")
     }
 }

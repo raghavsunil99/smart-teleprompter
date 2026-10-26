@@ -1,5 +1,8 @@
 package com.telugu.prompter
 
+import android.content.Context
+import android.net.wifi.WifiManager
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import androidx.compose.foundation.layout.Column
@@ -39,6 +42,8 @@ sealed interface RemoteCommand {
     data class OpenScript(val id: String) : RemoteCommand
     /** Words the laptop's mic heard (current utterance). */
     data class Heard(val text: String) : RemoteCommand
+    /** A script was saved from the laptop without opening it; refresh the list. */
+    data object ScriptsChanged : RemoteCommand
 }
 
 /**
@@ -47,6 +52,7 @@ sealed interface RemoteCommand {
  * prompter last published in [status].
  */
 class RemoteHub(
+    context: Context,
     private val store: ScriptStore,
     private val page: String,
     /** Opens the bundled TLS keystore (assets/remote-tls.p12). */
@@ -74,6 +80,18 @@ class RemoteHub(
     var laptopMicActive by mutableStateOf(false); private set
 
     private val main = Handler(Looper.getMainLooper())
+
+    // Phone Wi-Fi naps between packets to save power, adding 100 ms+ spikes; while the remote is
+    // on, ask for low-latency Wi-Fi so laptop-mic words arrive promptly.
+    private val wifiLock: WifiManager.WifiLock? = runCatching {
+        val wm = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+        val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            WifiManager.WIFI_MODE_FULL_LOW_LATENCY
+        } else {
+            @Suppress("DEPRECATION") WifiManager.WIFI_MODE_FULL_HIGH_PERF
+        }
+        wm.createWifiLock(mode, "prompter-remote").apply { setReferenceCounted(false) }
+    }.getOrNull()
     private var servers: List<RemoteServer> = emptyList()
     private val laptopMicExpired = Runnable { laptopMicActive = false }
     @Volatile private var httpsPort = 0
@@ -102,6 +120,10 @@ class RemoteHub(
         }
 
         override fun command(cmd: String, value: String?): Boolean {
+            if (cmd == "openScript") {
+                val id = value ?: return false
+                return commands.tryEmit(RemoteCommand.OpenScript(id))
+            }
             if (cmd !in PROMPTER_COMMANDS) return false
             return commands.tryEmit(RemoteCommand.Prompter(cmd, value))
         }
@@ -111,10 +133,10 @@ class RemoteHub(
         override fun scriptJson(id: String) = store.loadScripts().find { it.id == id }
             ?.let { Json.obj("id" to it.id, "title" to it.title, "body" to it.body) }
 
-        override fun saveScript(id: String?, title: String, body: String): String {
+        override fun saveScript(id: String?, title: String, body: String, open: Boolean): String {
             val script = Script(id ?: ScriptStore.newId(), title.ifBlank { body.trim().take(30) }, body)
             store.upsert(script)
-            commands.tryEmit(RemoteCommand.OpenScript(script.id))
+            commands.tryEmit(if (open) RemoteCommand.OpenScript(script.id) else RemoteCommand.ScriptsChanged)
             return script.id
         }
 
@@ -159,6 +181,7 @@ class RemoteHub(
                     return@post
                 }
                 servers = listOfNotNull(plain?.first, secure?.first)
+                runCatching { wifiLock?.acquire() }
                 httpsPort = secure?.second ?: 0
                 secureUrls = secure?.let { (_, port) -> hosts.map { "https://$it:$port" } }.orEmpty()
                 plainUrls = plain?.let { (_, port) -> hosts.map { "http://$it:$port" } }.orEmpty()
@@ -175,6 +198,7 @@ class RemoteHub(
     fun stop() {
         servers.forEach { it.stop() }
         servers = emptyList()
+        runCatching { if (wifiLock?.isHeld == true) wifiLock.release() }
         httpsPort = 0
         main.removeCallbacks(laptopMicExpired)
         laptopMicActive = false
@@ -186,14 +210,15 @@ class RemoteHub(
     companion object {
         private val HTTP_PORTS = 8080..8090
         private val HTTPS_PORTS = 8443..8453
-        private const val SOCKET_TIMEOUT_MS = 5000
+        /** Idle read timeout; the laptop page pings every 2 s, so its open connection stays up. */
+        private const val SOCKET_TIMEOUT_MS = 15000
         /** No words or heartbeat from the laptop for this long → phone mic takes over again. */
         private const val LAPTOP_MIC_TIMEOUT_MS = 4000L
 
         val PROMPTER_COMMANDS = setOf(
             "play", "pause", "toggle", "mode", "faster", "slower",
             "bigger", "smaller", "up", "down", "top", "flip", "mirror",
-            "section", "nextSection", "prevSection",
+            "section", "nextSection", "prevSection", "seek",
         )
 
         /** IPv4 addresses on Wi-Fi / hotspot interfaces the laptop can reach. */

@@ -59,12 +59,8 @@ class ScrollFollower {
         lastConfirmNanos = nowNanos
     }
 
-    /**
-     * Advance one frame. [listening] = recognizer is running (so prediction is allowed).
-     * [predictLimit] = furthest word index prediction may reach (end of the current paragraph),
-     * so it never drifts into the blank gap before the next paragraph.
-     */
-    fun step(nowNanos: Long, dtSeconds: Float, listening: Boolean, wordCount: Int, predictLimit: Int = wordCount): Float {
+    /** Advance one frame. [listening] = recognizer is running (so prediction is allowed). */
+    fun step(nowNanos: Long, dtSeconds: Float, listening: Boolean, wordCount: Int): Float {
         val sinceConfirm = if (lastConfirmNanos == 0L) Float.MAX_VALUE else (nowNanos - lastConfirmNanos) / 1e9f
         // Predicted words beyond the last heard one: grows at the speaking rate and levels off
         // smoothly at MAX_LEAD (a hard cap would make the scroll stop abruptly). After a pause
@@ -72,8 +68,7 @@ class ScrollFollower {
         val lead = if (listening && lastConfirmNanos != 0L) {
             MAX_LEAD * (1f - exp(-rate * min(sinceConfirm, PAUSE_SECONDS) / MAX_LEAD))
         } else 0f
-        val limit = max(confirmed, predictLimit).toFloat()
-        val target = min(min(confirmed + lead, limit), wordCount.toFloat())
+        val target = min(confirmed + lead, wordCount.toFloat())
 
         // Retake, or prompter paused while ahead of the last heard word: ease back onto it.
         if (!listening && display > target + 0.01f) rewinding = true

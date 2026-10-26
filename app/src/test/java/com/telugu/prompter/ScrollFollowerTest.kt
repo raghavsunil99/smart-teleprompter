@@ -103,15 +103,4 @@ class ScrollFollowerTest {
         assertEquals(10f, settled.last(), 0.05f)
     }
 
-    @Test
-    fun predictionStopsAtParagraphEnd() {
-        val f = ScrollFollower()
-        var now = 1_000_000_000L
-        f.confirm(9, now)
-        repeat(180) {
-            now += frameNanos
-            val p = f.step(now, frame, true, 100, predictLimit = 9) // word 9 ends the paragraph
-            assertTrue("drifted to $p", p <= 9f + 1e-4f)
-        }
-    }
 }

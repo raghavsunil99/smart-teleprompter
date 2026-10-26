@@ -49,9 +49,13 @@ class ScriptMatcher(text: String) {
     /** Sentence start a retake was first seen at; confirmed by the next hypothesis. */
     private var pendingRetake = -1
 
+    /** Target of a long forward jump with only 4 matching words; confirmed by the next hypothesis. */
+    private var pendingFar = -1
+
     fun reset(to: Int = 0) {
         position = to.coerceIn(0, words.size)
         pendingRetake = -1
+        pendingFar = -1
     }
 
     /** Index of the section containing [wordIndex], or -1 before the first heading. */
@@ -59,11 +63,30 @@ class ScriptMatcher(text: String) {
 
     private class Alignment(val score: Double, val endI: Int, val endJ: Int, val matches: Int, val startJ: Int)
 
+    /** Words of the previous hypothesis, to tell which heard words are new. */
+    private var previousHeard: List<String> = emptyList()
+
+    /**
+     * Index in [heard] where new words begin. Recognizers re-send what they heard so far (growing
+     * partials, or the laptop's rolling last-N words), and re-using already-matched words lets
+     * "tool Google" match the *next* "tool Google" in the script. So only new words may move us.
+     */
+    private fun firstNewWord(heard: List<String>): Int {
+        val prev = previousHeard
+        var common = 0
+        while (common < prev.size && common < heard.size && prev[common] == heard[common]) common++
+        var overlap = 0
+        for (len in minOf(prev.size, heard.size) downTo 1) {
+            if (prev.subList(prev.size - len, prev.size) == heard.subList(0, len)) { overlap = len; break }
+        }
+        return maxOf(common, overlap)
+    }
+
     /**
      * Best local alignment of [tail] against words[winStart, winEnd) that ends on one of the
      * last two heard words (the very last one may be a half-recognized partial).
      */
-    private fun align(tail: List<String>, winStart: Int, winEnd: Int): Alignment? {
+    private fun align(tail: List<String>, winStart: Int, winEnd: Int, firstNewI: Int = 0): Alignment? {
         if (winStart >= winEnd) return null
         val m = tail.size
         val n = winEnd - winStart
@@ -94,7 +117,8 @@ class ScriptMatcher(text: String) {
                 matches[i][j] = mc
                 start[i][j] = st
 
-                if (i >= m - 1 && isMatch) {
+                // Must end on a newly heard word (i is 1-based into tail).
+                if (i >= m - 1 && i > firstNewI && isMatch) {
                     val b = best
                     val better = b == null || v > b.score + 1e-9 ||
                         (kotlin.math.abs(v - b.score) < 1e-9 && i > b.endI)
@@ -112,38 +136,71 @@ class ScriptMatcher(text: String) {
         if (words.isEmpty()) return false
         val heard = tokenize(hypothesis).map { it.norm }.filter { it.isNotEmpty() }
         if (heard.isEmpty()) return false
+        val firstNew = firstNewWord(heard)
+        previousHeard = heard
+        if (firstNew >= heard.size) return false // nothing new since last time
         val tail = heard.takeLast(TAIL_WORDS)
         val m = tail.size
+        val firstNewI = (firstNew - (heard.size - m)).coerceAtLeast(0) // in tail coordinates
 
-        // 1. Normal case: moving forward from the current position.
+        // 1. Normal case: moving forward. Look nearest first, and the further ahead a match is,
+        //    the more matching words it needs: scripts repeat words ("Google", "tool", "video"),
+        //    and two of them can easily match a later section by accident.
         val fwdStart = (position - BACK_WINDOW).coerceAtLeast(0)
-        val fwd = align(tail, fwdStart, (position + AHEAD_WINDOW).coerceAtMost(words.size))
-        if (fwd != null) {
-            val newPos = fwdStart + fwd.endJ + (m - fwd.endI) // ended on the 2nd-last word → the last one is next
-            val jump = newPos - position
-            val confident = when {
-                fwd.matches >= 2 -> true
-                // A single word is enough only if it is close by and long/unambiguous.
-                fwd.matches == 1 -> jump in 0..2 && tail[fwd.endI - 1].length >= 3
-                else -> false
-            }
-            if (confident && newPos > position) {
-                position = newPos.coerceAtMost(words.size)
+        // If everything heard (old words included) still lines up best right here, the new word
+        // is noise or a filler: stay put rather than let it pull us to a later repeat.
+        val here = align(tail, fwdStart, (position + FORWARD_REACHES[0]).coerceAtMost(words.size))
+        if (here != null && here.matches >= 2) {
+            val herePos = fwdStart + here.endJ + (m - here.endI)
+            if (herePos in position - 1..position) {
                 pendingRetake = -1
-                return true
-            }
-            if (confident && newPos >= position - 1) {
-                pendingRetake = -1 // still reading where we are; not a retake
+                pendingFar = -1
                 return false
             }
+        }
+        for (reach in FORWARD_REACHES) {
+            val fwd = align(tail, fwdStart, (position + reach).coerceAtMost(words.size), firstNewI) ?: continue
+            val newPos = fwdStart + fwd.endJ + (m - fwd.endI) // ended on the 2nd-last word → the last one is next
+            val jump = newPos - position
+            if (newPos <= position) {
+                if (fwd.matches >= 2 && newPos >= position - 1) {
+                    pendingRetake = -1 // still reading where we are: don't look further away
+                    pendingFar = -1
+                    return false
+                }
+                continue
+            }
+            val needed = when {
+                jump <= 3 -> 2
+                jump <= 12 -> 3
+                else -> 4
+            }
+            // A single word is enough only if it is the very next one or two and long/unambiguous.
+            val singleOk = fwd.matches == 1 && jump <= 2 && tail[fwd.endI - 1].length >= 3
+            if (fwd.matches < needed && !singleOk) continue
+            // Real matches are mostly contiguous; a few common words spread across a long stretch
+            // (e.g. a filler "okay" fuzzily matching "okkate" 9 words ahead) are not.
+            val span = fwd.endJ - fwd.startJ
+            if (jump > 2 && fwd.matches * 3 < span * 2) continue
+            // Long jumps (skipped a sentence) need a 5-word match, or the next hypothesis to agree.
+            if (jump > 12 && fwd.matches < 5 && (pendingFar < 0 || newPos !in pendingFar..pendingFar + 3)) {
+                pendingFar = newPos
+                return false
+            }
+            position = newPos.coerceAtMost(words.size)
+            pendingRetake = -1
+            pendingFar = -1
+            return true
         }
 
         // 2. Retake: the speaker started an earlier sentence again.
         val backStart = (position - RETAKE_WINDOW).coerceAtLeast(0)
-        val back = align(tail, backStart, position) ?: return false
+        val back = align(tail, backStart, position, firstNewI) ?: return false
         val sentenceStart = backStart + back.startJ
         val newPos = backStart + back.endJ + (m - back.endI)
+        val span = back.endJ - back.startJ // aligned script words
         val isRetake = back.matches >= RETAKE_MIN_MATCHES &&
+            back.matches * 4 >= span * 3 && // mostly matching, not a few common words spread out
             sentenceStart in sentenceStarts &&
             newPos < position - 1
         if (!isRetake) return false
@@ -160,6 +217,8 @@ class ScriptMatcher(text: String) {
         private const val TAIL_WORDS = 6
         private const val BACK_WINDOW = 3
         private const val AHEAD_WINDOW = 40
+        /** Forward search windows, nearest first (words ahead of the current position). */
+        private val FORWARD_REACHES = intArrayOf(4, 13, AHEAD_WINDOW)
         private const val RETAKE_WINDOW = 60
         private const val RETAKE_MIN_MATCHES = 3
         private const val SENTENCE_ENDS = ".!?।|\n"
