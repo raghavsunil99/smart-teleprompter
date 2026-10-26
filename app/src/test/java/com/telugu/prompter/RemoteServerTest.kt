@@ -177,5 +177,6 @@ class RemoteServerTest {
     @Test
     fun jsonEscapes() {
         assertEquals("{\"a\":\"x\\\"y\\nz\",\"b\":3,\"c\":null}", Json.obj("a" to "x\"y\nz", "b" to 3, "c" to null))
+        assertEquals("{\"s\":[\"Intro\",\"Tip \\\"1\\\"\"],\"e\":[]}", Json.obj("s" to listOf("Intro", "Tip \"1\""), "e" to emptyList<String>()))
     }
 }

@@ -3,6 +3,7 @@ package com.telugu.prompter
 import android.content.Context
 import android.content.Intent
 import android.media.AudioManager
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -30,6 +31,8 @@ class SpeechFollower(
     private var running = false
     private var muted = false
     var muteBeeps: Boolean = true
+    /** Android 13+: one long session instead of restarting after every pause (fewer missed words, no beeps). */
+    var continuous: Boolean = true
 
     fun start() {
         if (running) return
@@ -76,7 +79,14 @@ class SpeechFollower(
             // Hints; many recognizers ignore them, which is why we also auto-restart.
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 4000L)
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 4000L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 15000L)
+            if (continuous && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                // Segmented session: results arrive per pause-separated segment, but the session
+                // itself keeps running. Recognizers that don't support it just behave as before.
+                putExtra(RecognizerIntent.EXTRA_SEGMENTED_SESSION, RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS)
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, SEGMENTED_SESSION_MS)
+            } else {
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 15000L)
+            }
         }
         try {
             recognizer?.startListening(intent)
@@ -122,6 +132,12 @@ class SpeechFollower(
             firstResult(partialResults)?.takeIf { it.isNotBlank() }?.let(onHypothesis)
         }
 
+        override fun onSegmentResults(segmentResults: Bundle) {
+            firstResult(segmentResults)?.takeIf { it.isNotBlank() }?.let(onHypothesis)
+        }
+
+        override fun onEndOfSegmentedSession() = restart(0)
+
         override fun onResults(results: Bundle?) {
             firstResult(results)?.takeIf { it.isNotBlank() }?.let(onHypothesis)
             restart(0)
@@ -157,5 +173,10 @@ class SpeechFollower(
                 else -> restart(500, recreate = true)
             }
         }
+    }
+
+    companion object {
+        /** Length of one continuous (segmented) session before it is renewed. */
+        private const val SEGMENTED_SESSION_MS = 10 * 60 * 1000L
     }
 }

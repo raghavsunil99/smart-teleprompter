@@ -59,4 +59,37 @@ class ScrollFollowerTest {
         f.jumpTo(3)
         assertEquals(3f, f.display, 0f)
     }
+
+    @Test
+    fun burstsDoNotCauseLurches() {
+        val f = ScrollFollower()
+        var t = 1_000_000_000L
+        val speeds = mutableListOf<Float>()
+        var last = 0f
+        // Recognizer reports 3 words at once every 1.2s (bursty), speaker ~2.5 words/s.
+        for (burst in 1..6) {
+            f.confirm(burst * 3, t)
+            repeat((1.2f / frame).toInt()) {
+                t += frameNanos
+                val p = f.step(t, frame, true, 100)
+                speeds += (p - last) / frame
+                last = p
+            }
+        }
+        // Speed changes frame to frame stay small: no sudden jumps when a burst lands.
+        val maxAccel = speeds.zipWithNext().maxOf { (a, b) -> kotlin.math.abs(b - a) }
+        assertTrue("max speed change per frame was $maxAccel", maxAccel < 0.5f)
+    }
+
+    @Test
+    fun retakeEasesBack() {
+        val f = ScrollFollower()
+        f.confirm(20, 1_000_000_000L)
+        val (_, t) = run(f, 1_000_000_000L, 3f)
+        f.confirm(10, t)
+        val (positions, _) = run(f, t, 1.5f, listening = false)
+        positions.zipWithNext().forEach { (a, b) -> assertTrue(b <= a + 1e-4f) } // moves back smoothly
+        assertTrue(positions.first() > 10.5f) // not an instant jump
+        assertEquals(10f, positions.last(), 0.1f)
+    }
 }

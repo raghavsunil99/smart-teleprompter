@@ -102,6 +102,12 @@
           <button data-cmd="down" title="Forward one line">↓ Line</button>
           <button data-cmd="top" title="Back to start">⤒ Start</button>
         </div>
+        <div class="row" id="sectionRow" style="display:none">
+          <span class="label">Sections</span>
+          <button data-cmd="prevSection" title="Previous section (P)">⏮</button>
+          <span id="sections" class="row" style="gap:6px"></span>
+          <button data-cmd="nextSection" title="Next section (N)">⏭</button>
+        </div>
         <div class="row">
           <span class="label">Text</span>
           <button data-cmd="smaller">A−</button>
@@ -128,6 +134,7 @@
         <span><kbd>M</kbd> mode</span>
         <span><kbd>T</kbd> start</span>
         <span><kbd>L</kbd> laptop mic</span>
+        <span><kbd>N</kbd><kbd>P</kbd> next / previous section</span>
       </div>
     </section>
 
@@ -216,7 +223,9 @@
     $('next').textContent = onPrompter ? (s.next || '') : '';
     $('bar').style.width = Math.round((s.progress || 0) * 100) + '%';
     $('heard').textContent = s.heard ? '🎙 ' + s.heard : '';
-    $('play').textContent = s.running ? '❚❚ Pause' : '▶ Play';
+    $('play').textContent = s.countdown > 0 ? 'Starting in ' + s.countdown + '…'
+      : s.running ? '❚❚ Pause' : '▶ Play';
+    renderSections(onPrompter ? (s.sections || []) : [], s.section);
     $('modeSteady').classList.toggle('on', s.mode === 'steady');
     $('modeVoice').classList.toggle('on', s.mode !== 'steady');
     $('font').textContent = s.fontSize ? Math.round(s.fontSize) + ' pt' : '';
@@ -225,6 +234,24 @@
     $('mirror').classList.toggle('on', !!s.mirror);
     if (!window.isSecureContext) explainSecureContext();
     $('micState').textContent = s.laptopMic ? 'Phone is following the laptop mic' : 'Phone is using its own mic';
+  }
+
+  let sectionKey = '';
+  function renderSections(list, current) {
+    $('sectionRow').style.display = list.length ? '' : 'none';
+    const key = JSON.stringify(list);
+    if (key !== sectionKey) {
+      sectionKey = key;
+      const box = $('sections');
+      box.innerHTML = '';
+      list.forEach((title, i) => {
+        const b = document.createElement('button');
+        b.textContent = title;
+        b.onclick = () => cmd('section', String(i));
+        box.appendChild(b);
+      });
+    }
+    [...$('sections').children].forEach((b, i) => b.classList.toggle('on', i === current));
   }
 
   async function poll() {
@@ -356,7 +383,7 @@
 
   $('micBtn').onclick = () => (listening ? stopMic() : startMic());
 
-  $('play').onclick = () => cmd(status.running ? 'pause' : 'play');
+  $('play').onclick = () => cmd(status.running || status.countdown > 0 ? 'pause' : 'play');
   $('modeSteady').onclick = () => cmd('mode', 'steady');
   $('modeVoice').onclick = () => cmd('mode', 'voice');
   document.querySelectorAll('[data-cmd]').forEach((b) => { b.onclick = () => cmd(b.dataset.cmd); });
@@ -365,7 +392,8 @@
     const t = e.target.tagName;
     if (t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT' || e.metaKey || e.ctrlKey || e.altKey) return;
     const map = {
-      ' ': () => cmd(status.running ? 'pause' : 'play'),
+      ' ': () => cmd(status.running || status.countdown > 0 ? 'pause' : 'play'),
+      n: () => cmd('nextSection'), p: () => cmd('prevSection'),
       ArrowUp: () => cmd('up'), ArrowDown: () => cmd('down'),
       '+': () => cmd('bigger'), '=': () => cmd('bigger'), '-': () => cmd('smaller'),
       '[': () => cmd('slower'), ']': () => cmd('faster'),

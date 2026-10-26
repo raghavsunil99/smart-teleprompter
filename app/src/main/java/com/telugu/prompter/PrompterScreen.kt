@@ -70,6 +70,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -94,6 +95,9 @@ private val UpcomingColor = Color.White
 private val CurrentColor = Color(0xFFFFC94D)
 private val CurrentWordBackground = Color(0x40FFC94D)
 private const val FADE_WORDS = 4
+private val UpcomingLineColor = Color(0xFFC8C8C8)
+private val HeadingColor = Color(0xFF64D2FF)
+private val HEADING_LINE = Regex("(?m)^[ \\t]*#.*$")
 private val ReadingBand = Color(0x99800000)
 private val ToggleBlue = Color(0xFF0A84FF)
 private val BarColor = Color(0xFF1C1C1E)
@@ -107,6 +111,8 @@ fun PrompterScreen(
     onSettingsChange: (PrompterSettings) -> Unit,
     remote: RemoteHub,
     onRemote: () -> Unit,
+    savedPosition: Int,
+    onSavePosition: (Int) -> Unit,
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -128,6 +134,8 @@ fun PrompterScreen(
     var showSettings by remember { mutableStateOf(false) }
     var peekUntil by remember { mutableLongStateOf(0L) }
     var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
+    var countdownLeft by remember { mutableIntStateOf(0) }
+    var resumed by remember { mutableStateOf(false) }
     val currentSettings by rememberUpdatedState(settings)
     val lineHeightPx = with(densityObj) { (settings.fontSizeSp * 1.5f).sp.toPx() }
 
@@ -149,11 +157,29 @@ fun PrompterScreen(
         )
     }
     speech.muteBeeps = settings.muteBeeps
+    speech.continuous = settings.continuousListening
+    KeyBus.useVolumeKeys = settings.useVolumeKeys
 
     fun resync(idx: Int) {
         matcher.reset(idx)
         follower.jumpTo(matcher.position)
         position = matcher.position
+    }
+
+    /** Word index being read: voice position, or the first word on the top reading line in Steady mode. */
+    fun currentWordIndex(): Int {
+        val l = layout
+        if (mode == Mode.VOICE || l == null || matcher.words.isEmpty()) return position
+        val line = l.getLineForVerticalPosition(scroll.value.toFloat())
+        return matcher.words.indexOfFirst { it.start >= l.getLineStart(line) }.let { if (it < 0) matcher.words.size else it }
+    }
+
+    // Pick up where this script was left last time.
+    LaunchedEffect(Unit) {
+        if (savedPosition in 1 until matcher.words.size) {
+            resync(savedPosition)
+            resumed = true
+        }
     }
 
     // Screen awake + full brightness while prompting; restore everything on leave.
@@ -165,6 +191,7 @@ fun PrompterScreen(
             w.attributes = w.attributes.apply { screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_FULL }
         }
         onDispose {
+            onSavePosition(currentWordIndex())
             speech.stop()
             remote.status = Json.obj("screen" to "list")
             view.keepScreenOn = false
@@ -193,25 +220,46 @@ fun PrompterScreen(
         if (phoneMicWanted) speech.start() else speech.stop()
     }
 
+    /** Starts after the 3-2-1 countdown (if one is set). */
+    fun startWithCountdown() {
+        resumed = false
+        val n = currentSettings.countdownSeconds
+        if (n > 0) countdownLeft = n else running = true
+    }
+
+    // Countdown: tick once a second, then start. Pausing sets it to 0, which cancels it.
+    LaunchedEffect(countdownLeft) {
+        if (countdownLeft <= 0) return@LaunchedEffect
+        delay(1000)
+        countdownLeft -= 1
+        if (countdownLeft == 0) running = true
+    }
+
     val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) running = true else status = SpeechFollower.Status.ERROR_PERMISSION
+        if (granted) startWithCountdown() else status = SpeechFollower.Status.ERROR_PERMISSION
     }
 
     fun play() {
         showSettings = false
+        if (running || countdownLeft > 0) return
         val needsPhoneMic = mode == Mode.VOICE && !remote.laptopMicActive
         val has = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
             PackageManager.PERMISSION_GRANTED
-        if (!needsPhoneMic || has) running = true else micPermission.launch(Manifest.permission.RECORD_AUDIO)
+        if (!needsPhoneMic || has) startWithCountdown() else micPermission.launch(Manifest.permission.RECORD_AUDIO)
     }
 
     fun pause() {
+        val wasActive = running || countdownLeft > 0
         running = false
+        countdownLeft = 0
+        if (wasActive) onSavePosition(currentWordIndex())
     }
+
+    val active = running || countdownLeft > 0
 
     fun switchMode(to: Mode) {
         if (to == mode) return
-        val wasRunning = running
+        val wasRunning = running || countdownLeft > 0
         pause()
         if (to == Mode.VOICE) {
             // Continue voice-following from whatever line Steady mode scrolled to.
@@ -239,8 +287,20 @@ fun PrompterScreen(
 
     fun toTop() {
         resync(0)
+        resumed = false
         scope.launch { scroll.animateScrollTo(0) }
     }
+
+    fun jumpToSection(i: Int) {
+        val sec = matcher.sections.getOrNull(i) ?: return
+        resync(sec.wordIndex)
+        if (mode == Mode.STEADY) {
+            val l = layout ?: return
+            scope.launch { scroll.animateScrollTo(l.getLineTop(l.getLineForOffset(sec.charStart)).roundToInt()) }
+        }
+    }
+
+    fun currentSection(): Int = matcher.sectionAt(currentWordIndex())
 
     val isTeleprompter = settings.flipVertical && settings.orientation == PrompterSettings.ORIENTATION_LANDSCAPE
     fun toggleTeleprompter() {
@@ -250,6 +310,34 @@ fun PrompterScreen(
         )
     }
 
+    /** One handler for laptop-remote commands and Bluetooth/keyboard keys. */
+    fun handle(cmd: String, value: String?) {
+        val s = currentSettings
+        when (cmd) {
+            "play" -> play()
+            "pause" -> pause()
+            "toggle" -> if (running || countdownLeft > 0) pause() else play()
+            "mode" -> switchMode(if (value == "steady") Mode.STEADY else Mode.VOICE)
+            "faster" -> onSettingsChange(s.copy(manualSpeed = (s.manualSpeed + 10f).coerceAtMost(150f)))
+            "slower" -> onSettingsChange(s.copy(manualSpeed = (s.manualSpeed - 10f).coerceAtLeast(10f)))
+            "bigger" -> onSettingsChange(s.copy(fontSizeSp = (s.fontSizeSp + 2).coerceAtMost(96f)))
+            "smaller" -> onSettingsChange(s.copy(fontSizeSp = (s.fontSizeSp - 2).coerceAtLeast(18f)))
+            "up" -> nudge(-1)
+            "down" -> nudge(1)
+            "top" -> toTop()
+            "flip" -> onSettingsChange(s.copy(flipVertical = !s.flipVertical))
+            "mirror" -> onSettingsChange(s.copy(mirror = !s.mirror))
+            "section" -> value?.toIntOrNull()?.let { jumpToSection(it) }
+            "nextSection" -> jumpToSection((currentSection() + 1).coerceAtMost(matcher.sections.size - 1))
+            "prevSection" -> {
+                // Like a music player: back to this section's start, or the previous one if already there.
+                val cur = currentSection()
+                val atStart = cur >= 0 && currentWordIndex() <= matcher.sections[cur].wordIndex
+                jumpToSection(if (atStart || cur < 0) (cur - 1).coerceAtLeast(0) else cur)
+            }
+        }
+    }
+
     // Commands from the laptop remote.
     LaunchedEffect(remote) {
         remote.commands.collect { c ->
@@ -257,24 +345,14 @@ fun PrompterScreen(
                 if (running && mode == Mode.VOICE) onHeardText(c.text, fromLaptop = true)
                 return@collect
             }
-            if (c !is RemoteCommand.Prompter) return@collect
-            val s = currentSettings
-            when (c.cmd) {
-                "play" -> if (!running) play()
-                "pause" -> pause()
-                "toggle" -> if (running) pause() else play()
-                "mode" -> switchMode(if (c.value == "steady") Mode.STEADY else Mode.VOICE)
-                "faster" -> onSettingsChange(s.copy(manualSpeed = (s.manualSpeed + 10f).coerceAtMost(150f)))
-                "slower" -> onSettingsChange(s.copy(manualSpeed = (s.manualSpeed - 10f).coerceAtLeast(10f)))
-                "bigger" -> onSettingsChange(s.copy(fontSizeSp = (s.fontSizeSp + 2).coerceAtMost(96f)))
-                "smaller" -> onSettingsChange(s.copy(fontSizeSp = (s.fontSizeSp - 2).coerceAtLeast(18f)))
-                "up" -> nudge(-1)
-                "down" -> nudge(1)
-                "top" -> toTop()
-                "flip" -> onSettingsChange(s.copy(flipVertical = !s.flipVertical))
-                "mirror" -> onSettingsChange(s.copy(mirror = !s.mirror))
-            }
+            if (c is RemoteCommand.Prompter) handle(c.cmd, c.value)
         }
+    }
+
+    // Bluetooth remotes, pedals and keyboards (routed from the Activity).
+    DisposableEffect(Unit) {
+        KeyBus.handler = { cmd -> handle(cmd, null); true }
+        onDispose { KeyBus.handler = null }
     }
 
     // Publish live state for the laptop page.
@@ -299,6 +377,9 @@ fun PrompterScreen(
                 "screen" to "prompter",
                 "title" to script.title,
                 "running" to running,
+                "countdown" to countdownLeft,
+                "sections" to matcher.sections.map { it.title },
+                "section" to currentSection(),
                 "mode" to if (mode == Mode.VOICE) "voice" else "steady",
                 "hearing" to (phoneMicWanted && status == SpeechFollower.Status.HEARING),
                 "laptopMic" to remote.laptopMicActive,
@@ -392,10 +473,21 @@ fun PrompterScreen(
         }
     }
 
-    val text = remember(script.body, position, mode) {
+    // Character range of the line being read (for the line-highlight style).
+    val readingLine: IntRange? = layout?.takeIf { matcher.words.isNotEmpty() }?.let { l ->
+        val li = l.getLineForOffset(matcher.words[position.coerceAtMost(matcher.words.size - 1)].start)
+        l.getLineStart(li) until l.getLineEnd(li)
+    }
+
+    val text = remember(script.body, position, mode, settings.highlightLine, readingLine) {
         buildAnnotatedString {
             append(script.body)
-            if (mode == Mode.VOICE && matcher.words.isNotEmpty()) {
+            if (mode == Mode.VOICE && settings.highlightLine && readingLine != null) {
+                // Line focus: the reading line in full white, read text grey, the rest slightly dimmed.
+                addStyle(SpanStyle(color = UpcomingLineColor), 0, script.body.length)
+                addStyle(SpanStyle(color = SpokenColor), 0, readingLine.first)
+                addStyle(SpanStyle(color = UpcomingColor), readingLine.first, readingLine.last + 1)
+            } else if (mode == Mode.VOICE && matcher.words.isNotEmpty()) {
                 // Only colours change here — never size or weight — so lines never re-wrap while reading.
                 addStyle(SpanStyle(color = UpcomingColor), 0, script.body.length)
                 val fadeStart = (position - FADE_WORDS).coerceAtLeast(0)
@@ -413,6 +505,10 @@ fun PrompterScreen(
                 }
             } else {
                 addStyle(SpanStyle(color = UpcomingColor), 0, script.body.length)
+            }
+            // "# Section" headings: always styled this way, so they never change size while reading.
+            HEADING_LINE.findAll(script.body).forEach {
+                addStyle(SpanStyle(color = HeadingColor, fontWeight = FontWeight.Bold), it.range.first, it.range.last + 1)
             }
         }
     }
@@ -473,6 +569,20 @@ fun PrompterScreen(
                 Box(Modifier.height(screenHeight))
             }
 
+            // 3-2-1 countdown, visible in the glass
+            if (countdownLeft > 0) {
+                Text(
+                    countdownLeft.toString(),
+                    color = CurrentColor,
+                    fontSize = 120.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .background(Color(0xCC000000), CircleShape)
+                        .padding(horizontal = 48.dp, vertical = 8.dp),
+                )
+            }
+
             // Small listening dot, visible in the glass while prompting
             if (mode == Mode.VOICE && running) {
                 Box(
@@ -500,7 +610,11 @@ fun PrompterScreen(
             ) {
                 ModeToggle(mode, onChange = { switchMode(it) })
                 Text(
-                    statusText(mode, running, status, remote.laptopMicActive),
+                    when {
+                        countdownLeft > 0 -> "Starting in $countdownLeft…"
+                        resumed && !running -> "Resumed where you left off · ⤒ to start over"
+                        else -> statusText(mode, running, status, remote.laptopMicActive)
+                    },
                     color = Color.White, fontSize = 12.sp,
                     modifier = Modifier
                         .padding(top = 6.dp)
@@ -542,10 +656,10 @@ fun PrompterScreen(
                         Icon(Icons.Default.SettingsRemote, "Laptop remote", tint = if (remote.isOn) ToggleBlue else Color.White)
                     }
                     FilledIconButton(
-                        onClick = { if (running) pause() else play() },
+                        onClick = { if (active) pause() else play() },
                         modifier = Modifier.size(56.dp),
                         colors = IconButtonDefaults.filledIconButtonColors(containerColor = ToggleBlue, contentColor = Color.White),
-                    ) { Icon(if (running) Icons.Default.Pause else Icons.Default.PlayArrow, "Play/Pause") }
+                    ) { Icon(if (active) Icons.Default.Pause else Icons.Default.PlayArrow, "Play/Pause") }
                     IconButton(onClick = { onSettingsChange(settings.copy(fontSizeSp = (settings.fontSizeSp - 2).coerceAtLeast(18f))) }) {
                         Icon(Icons.Default.TextDecrease, "Smaller", tint = Color.White)
                     }
@@ -622,15 +736,33 @@ private fun SettingsPanel(s: PrompterSettings, onChange: (PrompterSettings) -> U
                 FilterChip(selected = s.orientation == value, onClick = { onChange(s.copy(orientation = value)) }, label = { Text(label) })
             }
         }
+        Text("Highlight", color = Color.White, fontSize = 14.sp)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(selected = !s.highlightLine, onClick = { onChange(s.copy(highlightLine = false)) }, label = { Text("Word") })
+            FilterChip(selected = s.highlightLine, onClick = { onChange(s.copy(highlightLine = true)) }, label = { Text("Whole line") })
+        }
+        Text("Countdown before start", color = Color.White, fontSize = 14.sp)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(0 to "Off", 3 to "3 s", 5 to "5 s").forEach { (n, label) ->
+                FilterChip(selected = s.countdownSeconds == n, onClick = { onChange(s.copy(countdownSeconds = n)) }, label = { Text(label) })
+            }
+        }
         SettingRow("Mute beeps") {
             Switch(checked = s.muteBeeps, onCheckedChange = { onChange(s.copy(muteBeeps = it)) })
+        }
+        SettingRow("Volume buttons as remote (shutter remotes)") {
+            Switch(checked = s.useVolumeKeys, onCheckedChange = { onChange(s.copy(useVolumeKeys = it)) })
+        }
+        SettingRow("Continuous listening (Android 13+; turn off if following gets worse)") {
+            Switch(checked = s.continuousListening, onCheckedChange = { onChange(s.copy(continuousListening = it)) })
         }
         Text("Reading band position: ${(s.eyeLine * 100).toInt()}%", color = Color.White, fontSize = 13.sp)
         Slider(value = s.eyeLine, onValueChange = { onChange(s.copy(eyeLine = it)) }, valueRange = 0.1f..0.6f)
         Text("Steady speed: ${s.manualSpeed.toInt()}", color = Color.White, fontSize = 13.sp)
         Slider(value = s.manualSpeed, onValueChange = { onChange(s.copy(manualSpeed = it)) }, valueRange = 10f..150f)
         Text(
-            "Tip: tap = show controls, long-press a word = continue from there",
+            "Tip: tap = show controls, long-press a word = continue from there. " +
+                "Start a line with # to mark a section (jump between sections from the laptop).",
             color = Color.Gray, fontSize = 12.sp,
         )
     }

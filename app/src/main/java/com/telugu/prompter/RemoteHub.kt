@@ -193,6 +193,7 @@ class RemoteHub(
         val PROMPTER_COMMANDS = setOf(
             "play", "pause", "toggle", "mode", "faster", "slower",
             "bigger", "smaller", "up", "down", "top", "flip", "mirror",
+            "section", "nextSection", "prevSection",
         )
 
         /** IPv4 addresses on Wi-Fi / hotspot interfaces the laptop can reach. */

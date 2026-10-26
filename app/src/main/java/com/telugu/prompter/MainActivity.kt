@@ -1,6 +1,7 @@
 package com.telugu.prompter
 
 import android.os.Bundle
+import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -22,6 +23,10 @@ sealed interface Screen {
 }
 
 class MainActivity : ComponentActivity() {
+    // Bluetooth remotes / pedals / keyboards control the prompter (see KeyBus).
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean =
+        KeyBus.dispatch(event) || super.dispatchKeyEvent(event)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val store = ScriptStore(this)
@@ -76,6 +81,8 @@ class MainActivity : ComponentActivity() {
                             onSettingsChange = { settings = it; store.saveSettings(it) },
                             remote = remote,
                             onRemote = { showRemote = true },
+                            savedPosition = remember { store.loadPosition(s.script) },
+                            onSavePosition = { store.savePosition(s.script, it) },
                             onBack = { screen = Screen.List },
                         )
                     }

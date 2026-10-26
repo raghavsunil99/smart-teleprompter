@@ -167,6 +167,7 @@ object Json {
         is Boolean, is Int, is Long -> v.toString()
         is Float -> if (v.isFinite()) v.toString() else "null"
         is Double -> if (v.isFinite()) v.toString() else "null"
+        is List<*> -> v.joinToString(",", "[", "]") { value(it) }
         else -> str(v.toString())
     }
 }

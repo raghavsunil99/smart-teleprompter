@@ -15,6 +15,10 @@ data class PrompterSettings(
     val eyeLine: Float = 0.3f,      // fraction of screen height where the current line sits
     val manualSpeed: Float = 40f,   // pixels per second in manual mode
     val muteBeeps: Boolean = true,
+    val highlightLine: Boolean = false,      // soft-highlight the whole reading line instead of one word
+    val countdownSeconds: Int = 3,           // 3-2-1 before scrolling starts (0 = off)
+    val useVolumeKeys: Boolean = true,       // shutter remotes send volume keys
+    val continuousListening: Boolean = true, // Android 13+ segmented sessions
 ) {
     companion object {
         const val ORIENTATION_AUTO = 0
@@ -59,6 +63,10 @@ class ScriptStore(context: Context) {
         eyeLine = prefs.getFloat("eyeLine", 0.3f),
         manualSpeed = prefs.getFloat("manualSpeed", 40f),
         muteBeeps = prefs.getBoolean("muteBeeps", true),
+        highlightLine = prefs.getBoolean("highlightLine", false),
+        countdownSeconds = prefs.getInt("countdownSeconds", 3),
+        useVolumeKeys = prefs.getBoolean("useVolumeKeys", true),
+        continuousListening = prefs.getBoolean("continuousListening", true),
     )
 
     fun saveSettings(s: PrompterSettings) {
@@ -70,7 +78,22 @@ class ScriptStore(context: Context) {
             .putFloat("eyeLine", s.eyeLine)
             .putFloat("manualSpeed", s.manualSpeed)
             .putBoolean("muteBeeps", s.muteBeeps)
+            .putBoolean("highlightLine", s.highlightLine)
+            .putInt("countdownSeconds", s.countdownSeconds)
+            .putBoolean("useVolumeKeys", s.useVolumeKeys)
+            .putBoolean("continuousListening", s.continuousListening)
             .apply()
+    }
+
+    /** Where reading stopped in a script (word index), if the script hasn't been edited since. */
+    fun loadPosition(script: Script): Int {
+        val saved = prefs.getString("pos_${script.id}", null) ?: return 0
+        val (hash, index) = saved.split(":").let { it[0] to it.getOrNull(1)?.toIntOrNull() }
+        return if (hash == script.body.hashCode().toString()) index ?: 0 else 0
+    }
+
+    fun savePosition(script: Script, wordIndex: Int) {
+        prefs.edit().putString("pos_${script.id}", "${script.body.hashCode()}:$wordIndex").apply()
     }
 
     fun loadRemoteRequirePin(): Boolean = prefs.getBoolean("remoteRequirePin", false)
