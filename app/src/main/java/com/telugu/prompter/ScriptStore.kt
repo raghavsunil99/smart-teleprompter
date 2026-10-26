@@ -15,7 +15,9 @@ data class PrompterSettings(
     val eyeLine: Float = 0.3f,      // fraction of screen height where the current line sits
     val manualSpeed: Float = 40f,   // pixels per second in manual mode
     val muteBeeps: Boolean = true,
-    val highlightLine: Boolean = false,      // soft-highlight the whole reading line instead of one word
+    val highlightStyle: Int = HIGHLIGHT_WORD, // gliding word box, whole reading line, or none
+    val brightnessMode: Int = BRIGHTNESS_PHONE,
+    val brightnessLevel: Float = 0.7f,       // used with BRIGHTNESS_CUSTOM
     val countdownSeconds: Int = 3,           // 3-2-1 before scrolling starts (0 = off)
     val useVolumeKeys: Boolean = true,       // shutter remotes send volume keys
     val continuousListening: Boolean = true, // Android 13+ segmented sessions
@@ -24,6 +26,12 @@ data class PrompterSettings(
         const val ORIENTATION_AUTO = 0
         const val ORIENTATION_LANDSCAPE = 1
         const val ORIENTATION_PORTRAIT = 2
+        const val HIGHLIGHT_WORD = 0
+        const val HIGHLIGHT_LINE = 1
+        const val HIGHLIGHT_OFF = 2
+        const val BRIGHTNESS_PHONE = 0   // leave the phone's brightness alone
+        const val BRIGHTNESS_MAX = 1
+        const val BRIGHTNESS_CUSTOM = 2
     }
 }
 
@@ -63,7 +71,13 @@ class ScriptStore(context: Context) {
         eyeLine = prefs.getFloat("eyeLine", 0.3f),
         manualSpeed = prefs.getFloat("manualSpeed", 40f),
         muteBeeps = prefs.getBoolean("muteBeeps", true),
-        highlightLine = prefs.getBoolean("highlightLine", false),
+        // v1.1–v1.3 stored a line-highlight on/off switch; carry it over.
+        highlightStyle = prefs.getInt(
+            "highlightStyle",
+            if (prefs.getBoolean("highlightLine", false)) PrompterSettings.HIGHLIGHT_LINE else PrompterSettings.HIGHLIGHT_WORD,
+        ),
+        brightnessMode = prefs.getInt("brightnessMode", PrompterSettings.BRIGHTNESS_PHONE),
+        brightnessLevel = prefs.getFloat("brightnessLevel", 0.7f),
         countdownSeconds = prefs.getInt("countdownSeconds", 3),
         useVolumeKeys = prefs.getBoolean("useVolumeKeys", true),
         continuousListening = prefs.getBoolean("continuousListening", true),
@@ -78,7 +92,9 @@ class ScriptStore(context: Context) {
             .putFloat("eyeLine", s.eyeLine)
             .putFloat("manualSpeed", s.manualSpeed)
             .putBoolean("muteBeeps", s.muteBeeps)
-            .putBoolean("highlightLine", s.highlightLine)
+            .putInt("highlightStyle", s.highlightStyle)
+            .putInt("brightnessMode", s.brightnessMode)
+            .putFloat("brightnessLevel", s.brightnessLevel)
             .putInt("countdownSeconds", s.countdownSeconds)
             .putBoolean("useVolumeKeys", s.useVolumeKeys)
             .putBoolean("continuousListening", s.continuousListening)

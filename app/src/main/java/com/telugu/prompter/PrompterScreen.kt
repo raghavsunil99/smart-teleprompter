@@ -56,6 +56,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -95,6 +96,14 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import kotlinx.coroutines.delay
+import kotlin.math.abs
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.VectorConverter
+import androidx.compose.animation.core.spring
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -103,7 +112,7 @@ private enum class Mode { VOICE, STEADY }
 private val SpokenColor = Color(0xFF6E6E6E)
 private val UpcomingColor = Color.White
 private val CurrentColor = Color(0xFFFFC94D)
-private val CurrentWordBackground = Color(0x40FFC94D)
+private val CurrentWordBackground = Color(0x59FFC94D)
 private const val FADE_WORDS = 4
 private val UpcomingLineColor = Color(0xFFC8C8C8)
 private val HeadingColor = Color(0xFF64D2FF)
@@ -135,7 +144,12 @@ fun PrompterScreen(
     val density = densityObj.density
 
     val matcher = remember(script.body) { ScriptMatcher(script.body) }
-    val follower = remember(script.body) { ScrollFollower() }
+    val cruise = remember(script.body) { CruiseFollower() }
+    // Hand-off from the speech side to the frame loop: a re-sync jumps instantly, a new heard
+    // position is fed to cruise control (the loop knows the pixel y of each word).
+    val sync = remember(script.body) { FollowSync() }
+    // Fraction of a pixel the text is shifted, so the scroll is never limited to whole pixels.
+    val subPixel = remember { mutableFloatStateOf(0f) }
     var position by remember { mutableIntStateOf(0) }
     var mode by remember { mutableStateOf(Mode.VOICE) }
     var running by remember { mutableStateOf(false) }
@@ -156,7 +170,7 @@ fun PrompterScreen(
         heardOnLaptop = fromLaptop
         if (matcher.onHeard(h)) {
             position = matcher.position
-            follower.confirm(position, System.nanoTime())
+            sync.heardAt = System.nanoTime()
         }
     }
 
@@ -173,7 +187,7 @@ fun PrompterScreen(
 
     fun resync(idx: Int) {
         matcher.reset(idx)
-        follower.jumpTo(matcher.position)
+        sync.jump = true
         position = matcher.position
     }
 
@@ -198,9 +212,6 @@ fun PrompterScreen(
         view.keepScreenOn = true
         val window = activity?.window
         val oldBrightness = window?.attributes?.screenBrightness
-        window?.let { w ->
-            w.attributes = w.attributes.apply { screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_FULL }
-        }
         onDispose {
             onSavePosition(currentWordIndex())
             speech.stop()
@@ -213,6 +224,18 @@ fun PrompterScreen(
                 WindowCompat.getInsetsController(w, view).show(WindowInsetsCompat.Type.systemBars())
             }
             activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
+    }
+
+    // Brightness: by default leave the phone's own setting alone.
+    LaunchedEffect(settings.brightnessMode, settings.brightnessLevel) {
+        val w = activity?.window ?: return@LaunchedEffect
+        w.attributes = w.attributes.apply {
+            screenBrightness = when (settings.brightnessMode) {
+                PrompterSettings.BRIGHTNESS_MAX -> WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_FULL
+                PrompterSettings.BRIGHTNESS_CUSTOM -> settings.brightnessLevel.coerceIn(0.05f, 1f)
+                else -> WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+            }
         }
     }
 
@@ -466,38 +489,86 @@ fun PrompterScreen(
         }
     }
 
-    // Voice mode: glide every frame toward the smoothed reading position.
+    /** Moves the scroll to [y] px: whole pixels via the scroll, the fraction via [subPixel]. */
+    suspend fun scrollToFloat(y: Float) {
+        val whole = kotlin.math.floor(y).toInt()
+        val delta = whole - scroll.value
+        if (delta != 0) scroll.scrollBy(delta.toFloat())
+        // If the scroll was clamped (start/end of the text), don't shift the fraction either.
+        subPixel.floatValue = if (scroll.value == whole) y - whole else 0f
+    }
+
+    // Word positions change when the text is re-laid out (font size, rotation): re-sync then.
+    // (Not on every highlight change: the text is redrawn for each word, but nothing moves.)
+    LaunchedEffect(settings.fontSizeSp, layout?.size) { sync.jump = true }
+
+    // Voice mode: cruise control — scroll at the speaker's pace, every frame, in sub-pixel steps.
+    // The loop keeps running across redraws and reads the latest word positions each frame.
     val isListening by rememberUpdatedState(running && mode == Mode.VOICE)
-    LaunchedEffect(mode, wordY) {
-        if (mode != Mode.VOICE || wordY.isEmpty()) return@LaunchedEffect
+    val currentWordY by rememberUpdatedState(wordY)
+    LaunchedEffect(mode) {
+        if (mode != Mode.VOICE) return@LaunchedEffect
+        sync.jump = true
         var last = withFrameNanos { it }
-        var lastP = Float.NaN
+        var lastY = Float.NaN
         while (true) {
             val t = withFrameNanos { it }
             val dt = ((t - last) / 1e9f).coerceAtMost(0.1f)
             last = t
-            val p = follower.step(System.nanoTime(), dt, isListening, matcher.words.size)
-            // Only drive the scroll when the reading position moves, so a paused prompter can be finger-scrolled.
-            if (p == lastP) continue
-            lastP = p
-            val i = p.toInt().coerceIn(0, wordY.size - 1)
-            val j = (i + 1).coerceAtMost(wordY.size - 1)
-            val y = wordY[i] + (wordY[j] - wordY[i]) * (p - i)
-            val delta = y.roundToInt() - scroll.value
-            if (delta != 0) scroll.scrollBy(delta.toFloat())
+            val wordY = currentWordY
+            if (wordY.isEmpty()) continue
+            val p = position.coerceIn(0, wordY.size - 1)
+            if (sync.jump) {
+                cruise.jumpTo(wordY[p])
+                sync.jump = false
+                sync.lastPos = p
+            } else if (p != sync.lastPos) {
+                cruise.confirm(wordY[p], if (sync.heardAt != 0L) sync.heardAt else System.nanoTime())
+                sync.lastPos = p
+            }
+            cruise.maxLeadPx = lineHeightPx * 1.2f
+            val y = cruise.step(System.nanoTime(), dt, isListening)
+            // Only drive the scroll when it moves, so a paused prompter can be finger-scrolled.
+            if (y == lastY) continue
+            lastY = y
+            scrollToFloat(y)
         }
     }
 
-    // Steady mode: constant-speed scroll.
+    // Steady mode: constant-speed scroll, also in sub-pixel steps.
     val speed by rememberUpdatedState(settings.manualSpeed)
     LaunchedEffect(running, mode) {
-        if (!running || mode != Mode.STEADY) return@LaunchedEffect
+        if (mode != Mode.STEADY) return@LaunchedEffect
+        subPixel.floatValue = 0f
+        if (!running) return@LaunchedEffect
+        var y = scroll.value.toFloat()
         var last = withFrameNanos { it }
         while (true) {
             val t = withFrameNanos { it }
             val dt = (t - last) / 1e9f
             last = t
-            scroll.scrollBy(speed * dt * density)
+            if (abs(scroll.value - kotlin.math.floor(y)) > 1f) y = scroll.value.toFloat() // finger-scrolled
+            y += speed * dt * density
+            scrollToFloat(y)
+        }
+    }
+
+    // Gliding highlight: a box behind the current word that slides to the next word instead of
+    // hopping. Moving to a new line it jumps straight there rather than sweeping back across.
+    val highlightTarget: Rect? = layout?.takeIf {
+        mode == Mode.VOICE && settings.highlightStyle == PrompterSettings.HIGHLIGHT_WORD && position < matcher.words.size
+    }?.let { l ->
+        val w = matcher.words[position]
+        l.getPathForRange(w.start, w.end).getBounds()
+    }
+    val highlightBox = remember { Animatable(Rect.Zero, Rect.VectorConverter) }
+    LaunchedEffect(highlightTarget) {
+        val target = highlightTarget ?: return@LaunchedEffect
+        val current = highlightBox.value
+        if (current == Rect.Zero || abs(target.top - current.top) > lineHeightPx * 0.5f) {
+            highlightBox.snapTo(target)
+        } else {
+            highlightBox.animateTo(target, spring(dampingRatio = 1f, stiffness = 380f))
         }
     }
 
@@ -507,16 +578,17 @@ fun PrompterScreen(
         l.getLineStart(li) until l.getLineEnd(li)
     }
 
-    val text = remember(script.body, position, mode, settings.highlightLine, readingLine) {
+    val text = remember(script.body, position, mode, settings.highlightStyle, readingLine) {
         buildAnnotatedString {
             append(script.body)
-            if (mode == Mode.VOICE && settings.highlightLine && readingLine != null) {
+            if (mode == Mode.VOICE && settings.highlightStyle == PrompterSettings.HIGHLIGHT_LINE && readingLine != null) {
                 // Line focus: the reading line in full white, read text grey, the rest slightly dimmed.
                 addStyle(SpanStyle(color = UpcomingLineColor), 0, script.body.length)
                 addStyle(SpanStyle(color = SpokenColor), 0, readingLine.first)
                 addStyle(SpanStyle(color = UpcomingColor), readingLine.first, readingLine.last + 1)
-            } else if (mode == Mode.VOICE && matcher.words.isNotEmpty()) {
+            } else if (mode == Mode.VOICE && settings.highlightStyle == PrompterSettings.HIGHLIGHT_WORD && matcher.words.isNotEmpty()) {
                 // Only colours change here — never size or weight — so lines never re-wrap while reading.
+                // The current word is marked by the gliding box drawn behind the text, not a colour swap.
                 addStyle(SpanStyle(color = UpcomingColor), 0, script.body.length)
                 val fadeStart = (position - FADE_WORDS).coerceAtLeast(0)
                 val spokenEnd = if (fadeStart > 0) matcher.words[fadeStart - 1].end else 0
@@ -526,10 +598,6 @@ fun PrompterScreen(
                     val t = (position - i).toFloat() / (FADE_WORDS + 1)
                     val w = matcher.words[i]
                     addStyle(SpanStyle(color = lerp(UpcomingColor, SpokenColor, t)), w.start, w.end)
-                }
-                if (position < matcher.words.size) {
-                    val w = matcher.words[position]
-                    addStyle(SpanStyle(color = CurrentColor, background = CurrentWordBackground), w.start, w.end)
                 }
             } else {
                 addStyle(SpanStyle(color = UpcomingColor), 0, script.body.length)
@@ -605,6 +673,20 @@ fun PrompterScreen(
                     fontSize = settings.fontSizeSp.sp,
                     lineHeight = (settings.fontSizeSp * 1.5f).sp,
                     onTextLayout = { layout = it },
+                    modifier = Modifier
+                        .graphicsLayer { translationY = -subPixel.floatValue }
+                        .drawBehind {
+                            if (highlightTarget != null) {
+                                val r = highlightBox.value
+                                val padX = 6.dp.toPx()
+                                drawRoundRect(
+                                    color = CurrentWordBackground,
+                                    topLeft = Offset(r.left - padX, r.top + r.height * 0.1f),
+                                    size = Size(r.width + 2 * padX, r.height * 0.8f),
+                                    cornerRadius = CornerRadius(10.dp.toPx()),
+                                )
+                            }
+                        },
                 )
                 Box(Modifier.height(screenHeight))
             }
@@ -813,8 +895,26 @@ private fun SettingsPanel(s: PrompterSettings, onChange: (PrompterSettings) -> U
         }
         Text("Highlight", color = Color.White, fontSize = 14.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(selected = !s.highlightLine, onClick = { onChange(s.copy(highlightLine = false)) }, label = { Text("Word") })
-            FilterChip(selected = s.highlightLine, onClick = { onChange(s.copy(highlightLine = true)) }, label = { Text("Whole line") })
+            listOf(
+                PrompterSettings.HIGHLIGHT_WORD to "Gliding word",
+                PrompterSettings.HIGHLIGHT_LINE to "Whole line",
+                PrompterSettings.HIGHLIGHT_OFF to "Off",
+            ).forEach { (v, label) ->
+                FilterChip(selected = s.highlightStyle == v, onClick = { onChange(s.copy(highlightStyle = v)) }, label = { Text(label) })
+            }
+        }
+        Text("Screen brightness", color = Color.White, fontSize = 14.sp)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(
+                PrompterSettings.BRIGHTNESS_PHONE to "Phone's",
+                PrompterSettings.BRIGHTNESS_MAX to "Maximum",
+                PrompterSettings.BRIGHTNESS_CUSTOM to "Custom",
+            ).forEach { (v, label) ->
+                FilterChip(selected = s.brightnessMode == v, onClick = { onChange(s.copy(brightnessMode = v)) }, label = { Text(label) })
+            }
+        }
+        if (s.brightnessMode == PrompterSettings.BRIGHTNESS_CUSTOM) {
+            Slider(value = s.brightnessLevel, onValueChange = { onChange(s.copy(brightnessLevel = it)) }, valueRange = 0.05f..1f)
         }
         Text("Countdown before start", color = Color.White, fontSize = 14.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -861,4 +961,11 @@ private fun statusText(mode: Mode, running: Boolean, status: SpeechFollower.Stat
     !running -> "Tap ▶ and start speaking"
     status == SpeechFollower.Status.HEARING -> "Hearing you"
     else -> "Listening"
+}
+
+/** Shared between the speech callbacks and the frame loop (plain fields: both run on the main thread). */
+private class FollowSync {
+    var jump = true
+    var lastPos = -1
+    var heardAt = 0L
 }
