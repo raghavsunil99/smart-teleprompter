@@ -70,6 +70,16 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -98,9 +108,12 @@ private const val FADE_WORDS = 4
 private val UpcomingLineColor = Color(0xFFC8C8C8)
 private val HeadingColor = Color(0xFF64D2FF)
 private val HEADING_LINE = Regex("(?m)^[ \\t]*#.*$")
-private val ReadingBand = Color(0x99800000)
+/** A blank line between paragraphs: newline, optional spaces, newline. */
+private val PARAGRAPH_BREAK = Regex("\\n[ \\t]*\\n")
+private val ReadingBand = Color(0x66B3261E)
+private val BandMarker = Color(0xFFE5534B)
 private val ToggleBlue = Color(0xFF0A84FF)
-private val BarColor = Color(0xFF1C1C1E)
+private val BarColor = Color(0xFF161618)
 private val TextSidePadding = 24.dp
 private const val PEEK_MILLIS = 4000L
 
@@ -404,18 +417,33 @@ fun PrompterScreen(
         ) running = false
     }
 
-    // Clean screen: while running, hide our controls and Android's bars unless the user tapped to peek.
+    // Clean screen: while running, hide our controls unless the user tapped to peek.
     val now by produceNow(peekUntil)
     val controlsVisible = !running || now < peekUntil
-    LaunchedEffect(controlsVisible) {
+    // Android's status/navigation bars stay hidden on the prompter (swipe from an edge to see them),
+    // so script text never runs underneath them. Android re-shows them after rotation, dialogs and
+    // permission prompts, so hide them again whenever the screen state changes.
+    LaunchedEffect(running, countdownLeft > 0, controlsVisible, showSettings, settings.orientation) {
         val w = activity?.window ?: return@LaunchedEffect
         val c = WindowCompat.getInsetsController(w, view)
-        if (controlsVisible) {
-            c.show(WindowInsetsCompat.Type.systemBars())
-        } else {
-            c.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            c.hide(WindowInsetsCompat.Type.systemBars())
+        c.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        c.hide(WindowInsetsCompat.Type.systemBars())
+    }
+
+    // For each word, the last word of its paragraph: prediction stops there instead of drifting
+    // into the blank gap before the next paragraph.
+    val paragraphEnd = remember(matcher) {
+        val n = matcher.words.size
+        val ends = IntArray(n)
+        var end = n - 1
+        for (i in n - 1 downTo 0) {
+            if (i < n - 1) {
+                val gap = script.body.substring(matcher.words[i].end, matcher.words[i + 1].start)
+                if (PARAGRAPH_BREAK.containsMatchIn(gap) || gap.contains('#')) end = i
+            }
+            ends[i] = end
         }
+        ends
     }
 
     // Y position (px, relative to the text top) of each word, interpolated across its line,
@@ -448,7 +476,8 @@ fun PrompterScreen(
             val t = withFrameNanos { it }
             val dt = ((t - last) / 1e9f).coerceAtMost(0.1f)
             last = t
-            val p = follower.step(System.nanoTime(), dt, isListening, matcher.words.size)
+            val limit = paragraphEnd.getOrElse(position.coerceAtMost(matcher.words.size - 1)) { matcher.words.size }
+            val p = follower.step(System.nanoTime(), dt, isListening, matcher.words.size, limit)
             // Only drive the scroll when the reading position moves, so a paused prompter can be finger-scrolled.
             if (p == lastP) continue
             lastP = p
@@ -542,21 +571,33 @@ fun PrompterScreen(
                     )
                 },
         ) {
-            // Red reading band behind the line being read. The line drifts up by one line height
-            // as it is read (see wordY), so the band is centred on that drift.
+            // Reading band. A line starts at the eye-line and drifts up by one line height as it
+            // is read (see wordY), so the band spans that drift, with soft top and bottom edges.
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .offset(y = eyeLineDp - lineHeightDp * 0.55f)
-                    .height(lineHeightDp * 1.2f)
-                    .padding(horizontal = TextSidePadding / 2)
-                    .background(ReadingBand),
+                    .offset(y = eyeLineDp - lineHeightDp * 0.4f)
+                    .height(lineHeightDp * 1.5f)
+                    .background(
+                        Brush.verticalGradient(
+                            0f to Color.Transparent, 0.18f to ReadingBand, 0.82f to ReadingBand, 1f to Color.Transparent,
+                        ),
+                    ),
+            )
+            // Thin marker at the left edge of the band
+            Box(
+                Modifier
+                    .offset(y = eyeLineDp - lineHeightDp * 0.1f)
+                    .padding(start = 4.dp)
+                    .size(width = 4.dp, height = lineHeightDp * 0.9f)
+                    .background(BandMarker, RoundedCornerShape(2.dp)),
             )
 
             Column(
                 Modifier
                     .fillMaxSize()
                     .verticalScroll(scroll, enabled = !(running && mode == Mode.VOICE))
+                    .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
                     .padding(horizontal = TextSidePadding),
             ) {
                 Box(Modifier.height(eyeLineDp))
@@ -603,75 +644,109 @@ fun PrompterScreen(
         }
 
         if (controlsVisible) {
-            // Mode toggle + status
-            Column(
-                Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                ModeToggle(mode, onChange = { switchMode(it) })
-                Text(
-                    when {
-                        countdownLeft > 0 -> "Starting in $countdownLeft…"
-                        resumed && !running -> "Resumed where you left off · ⤒ to start over"
-                        else -> statusText(mode, running, status, remote.laptopMicActive)
-                    },
-                    color = Color.White, fontSize = 12.sp,
-                    modifier = Modifier
-                        .padding(top = 6.dp)
-                        .background(Color(0xCC222222), RoundedCornerShape(10.dp))
-                        .padding(horizontal = 10.dp, vertical = 3.dp),
-                )
+            val wide = maxWidth >= 600.dp
+            val statusLine = when {
+                countdownLeft > 0 -> "Starting in $countdownLeft…"
+                resumed && !running -> "Resumed where you left off · Start to begin again"
+                else -> statusText(mode, running, status, remote.laptopMicActive)
             }
+            val heardLine = if (mode == Mode.VOICE && running && lastHeard.isNotBlank()) {
+                (if (heardOnLaptop) "💻 " else "🎙 ") + lastHeard
+            } else ""
 
-            // Bottom bar
             Column(
                 Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
+                    .background(Brush.verticalGradient(0f to Color.Transparent, 1f to BarColor))
+                    .padding(top = 16.dp)
                     .background(BarColor)
-                    .navigationBarsPadding()
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                    .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
             ) {
-                // Side button: jump to start
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    FilledIconButton(
-                        onClick = { toTop() },
-                        colors = IconButtonDefaults.filledIconButtonColors(containerColor = Color(0xFF2C2C2E), contentColor = Color.White),
-                    ) { Icon(Icons.Default.VerticalAlignTop, "Back to start") }
+                if (showSettings) SettingsPanel(settings, onSettingsChange, Modifier.heightIn(max = screenHeight * 0.55f))
+
+                val modeAndStatus: @Composable () -> Unit = {
+                    ModeToggle(mode, onChange = { switchMode(it) })
                 }
-                if (showSettings) SettingsPanel(settings, onSettingsChange, Modifier.heightIn(max = screenHeight * 0.5f))
-                if (mode == Mode.VOICE && running && lastHeard.isNotBlank()) {
-                    Text((if (heardOnLaptop) "💻 " else "🎙 ") + lastHeard, color = Color.Gray, fontSize = 12.sp, maxLines = 1, modifier = Modifier.padding(horizontal = 8.dp))
+                val buttonsLeft: @Composable () -> Unit = {
+                    BarButton(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = ToggleBlue) { pause(); onBack() }
+                    BarButton(Icons.Default.VerticalAlignTop, "Start") { toTop() }
                 }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { pause(); onBack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = ToggleBlue) }
-                    IconButton(onClick = { toggleTeleprompter() }) {
-                        Icon(
-                            Icons.Default.Flip, "Teleprompter mode (upside-down + landscape)",
-                            tint = if (isTeleprompter) ToggleBlue else Color.White,
-                            modifier = Modifier.rotate(90f),
-                        )
-                    }
-                    IconButton(onClick = onRemote) {
-                        Icon(Icons.Default.SettingsRemote, "Laptop remote", tint = if (remote.isOn) ToggleBlue else Color.White)
-                    }
+                val playButton: @Composable () -> Unit = {
                     FilledIconButton(
                         onClick = { if (active) pause() else play() },
-                        modifier = Modifier.size(56.dp),
+                        modifier = Modifier.padding(horizontal = 6.dp).size(48.dp),
                         colors = IconButtonDefaults.filledIconButtonColors(containerColor = ToggleBlue, contentColor = Color.White),
-                    ) { Icon(if (active) Icons.Default.Pause else Icons.Default.PlayArrow, "Play/Pause") }
-                    IconButton(onClick = { onSettingsChange(settings.copy(fontSizeSp = (settings.fontSizeSp - 2).coerceAtLeast(18f))) }) {
-                        Icon(Icons.Default.TextDecrease, "Smaller", tint = Color.White)
+                    ) { Icon(if (active) Icons.Default.Pause else Icons.Default.PlayArrow, if (active) "Pause" else "Play") }
+                }
+                val buttonsRight: @Composable () -> Unit = {
+                    BarButton(Icons.Default.TextDecrease, "Smaller") {
+                        onSettingsChange(settings.copy(fontSizeSp = (settings.fontSizeSp - 2).coerceAtLeast(18f)))
                     }
-                    IconButton(onClick = { onSettingsChange(settings.copy(fontSizeSp = (settings.fontSizeSp + 2).coerceAtMost(96f))) }) {
-                        Icon(Icons.Default.TextIncrease, "Bigger", tint = Color.White)
+                    BarButton(Icons.Default.TextIncrease, "Bigger") {
+                        onSettingsChange(settings.copy(fontSizeSp = (settings.fontSizeSp + 2).coerceAtMost(96f)))
                     }
-                    IconButton(onClick = { showSettings = !showSettings }) {
-                        Icon(Icons.Default.Settings, "Settings", tint = if (showSettings) ToggleBlue else Color.White)
+                    BarButton(Icons.Default.Flip, "Prompter", tint = if (isTeleprompter) ToggleBlue else Color.White, rotate = 90f) {
+                        toggleTeleprompter()
+                    }
+                    BarButton(Icons.Default.SettingsRemote, "Remote", tint = if (remote.isOn) ToggleBlue else Color.White, onClick = onRemote)
+                    BarButton(Icons.Default.Settings, "Settings", tint = if (showSettings) ToggleBlue else Color.White) {
+                        showSettings = !showSettings
+                    }
+                }
+
+                // Status (and what the mic hears) in one small line above the buttons.
+                Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(statusLine, color = Color(0xFFB0B0B0), fontSize = 12.sp, maxLines = 1)
+                    Text(
+                        heardLine, color = Color.Gray, fontSize = 12.sp, maxLines = 1,
+                        overflow = TextOverflow.Ellipsis, textAlign = TextAlign.End,
+                        modifier = Modifier.weight(1f).padding(start = 12.dp),
+                    )
+                }
+                if (wide) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        buttonsLeft()
+                        Box(Modifier.padding(horizontal = 6.dp)) { modeAndStatus() }
+                        Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { playButton() }
+                        buttonsRight()
+                    }
+                } else {
+                    // Portrait: mode + play on top, the other buttons in one evenly spaced row.
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        BarButton(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = ToggleBlue) { pause(); onBack() }
+                        Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { modeAndStatus() }
+                        playButton()
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        BarButton(Icons.Default.VerticalAlignTop, "Start") { toTop() }
+                        buttonsRight()
                     }
                 }
             }
         }
+    }
+}
+
+/** Small icon button with a label underneath. */
+@Composable
+private fun BarButton(
+    icon: ImageVector,
+    label: String,
+    tint: Color = Color.White,
+    rotate: Float = 0f,
+    onClick: () -> Unit,
+) {
+    Column(
+        Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(icon, null, tint = tint, modifier = Modifier.size(22.dp).rotate(rotate))
+        Text(label, color = Color(0xFFCCCCCC), fontSize = 10.sp, maxLines = 1)
     }
 }
 
@@ -687,11 +762,12 @@ private fun ModeToggle(mode: Mode, onChange: (Mode) -> Unit) {
             Text(
                 label,
                 color = Color.White,
-                fontSize = 15.sp,
+                fontSize = 13.sp,
                 modifier = Modifier
-                    .background(if (selected) ToggleBlue else Color.Transparent, RoundedCornerShape(50))
+                    .clip(RoundedCornerShape(50))
+                    .background(if (selected) ToggleBlue else Color.Transparent)
                     .clickable { onChange(m) }
-                    .padding(horizontal = 18.dp, vertical = 8.dp),
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
             )
         }
     }

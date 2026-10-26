@@ -92,4 +92,26 @@ class ScrollFollowerTest {
         assertTrue(positions.first() > 10.5f) // not an instant jump
         assertEquals(10f, positions.last(), 0.1f)
     }
+
+    @Test
+    fun settlesOnLastHeardWordWhenPaused() {
+        val f = ScrollFollower()
+        f.confirm(10, 1_000_000_000L)
+        val (ahead, t) = run(f, 1_000_000_000L, 3f) // glide there; prediction runs a little ahead
+        assertTrue(ahead.last() > 10.3f)
+        val (settled, _) = run(f, t, 1.5f, listening = false)
+        assertEquals(10f, settled.last(), 0.05f)
+    }
+
+    @Test
+    fun predictionStopsAtParagraphEnd() {
+        val f = ScrollFollower()
+        var now = 1_000_000_000L
+        f.confirm(9, now)
+        repeat(180) {
+            now += frameNanos
+            val p = f.step(now, frame, true, 100, predictLimit = 9) // word 9 ends the paragraph
+            assertTrue("drifted to $p", p <= 9f + 1e-4f)
+        }
+    }
 }

@@ -13,8 +13,9 @@ import kotlin.math.min
  * speaker pauses. The position has inertia (its velocity is smoothed), so it follows the
  * average speaking pace instead of lurching with every burst.
  *
- * It only moves backwards for a retake ([confirm] with a lower position), and then eases
- * back rather than jumping. [jumpTo] is an instant manual re-sync.
+ * It only moves backwards for a retake ([confirm] with a lower position), and when listening
+ * stops it eases back onto the last word actually heard, so the reading line settles in the
+ * band. [jumpTo] is an instant manual re-sync.
  */
 class ScrollFollower {
 
@@ -58,8 +59,12 @@ class ScrollFollower {
         lastConfirmNanos = nowNanos
     }
 
-    /** Advance one frame. [listening] = recognizer is running (so prediction is allowed). */
-    fun step(nowNanos: Long, dtSeconds: Float, listening: Boolean, wordCount: Int): Float {
+    /**
+     * Advance one frame. [listening] = recognizer is running (so prediction is allowed).
+     * [predictLimit] = furthest word index prediction may reach (end of the current paragraph),
+     * so it never drifts into the blank gap before the next paragraph.
+     */
+    fun step(nowNanos: Long, dtSeconds: Float, listening: Boolean, wordCount: Int, predictLimit: Int = wordCount): Float {
         val sinceConfirm = if (lastConfirmNanos == 0L) Float.MAX_VALUE else (nowNanos - lastConfirmNanos) / 1e9f
         // Predicted words beyond the last heard one: grows at the speaking rate and levels off
         // smoothly at MAX_LEAD (a hard cap would make the scroll stop abruptly). After a pause
@@ -67,8 +72,11 @@ class ScrollFollower {
         val lead = if (listening && lastConfirmNanos != 0L) {
             MAX_LEAD * (1f - exp(-rate * min(sinceConfirm, PAUSE_SECONDS) / MAX_LEAD))
         } else 0f
-        val target = min(confirmed + lead, wordCount.toFloat())
+        val limit = max(confirmed, predictLimit).toFloat()
+        val target = min(min(confirmed + lead, limit), wordCount.toFloat())
 
+        // Retake, or prompter paused while ahead of the last heard word: ease back onto it.
+        if (!listening && display > target + 0.01f) rewinding = true
         if (rewinding) {
             display += (target - display) * (1f - exp(-dtSeconds / REWIND_SECONDS))
             if (abs(target - display) < 0.05f) { display = target; rewinding = false }
