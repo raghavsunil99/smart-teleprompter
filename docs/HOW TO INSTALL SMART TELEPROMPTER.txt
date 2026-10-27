@@ -1,0 +1,54 @@
+SMART TELEPROMPTER BY RAGHAV — HOW TO INSTALL
+=============================================
+
+Smart Teleprompter listens while you talk and scrolls your script along with you.
+It works with scripts in Telugu letters, Tenglish (Telugu typed in English letters)
+and English.
+
+You need:
+  • an Android phone or tablet (Android 8 or newer)
+  • the Google app (for Telugu speech recognition) and usually internet
+  • optional: a laptop with Google Chrome on the same Wi-Fi, to use as a remote and mic
+
+
+1. INSTALL ON ANDROID
+---------------------
+1. Copy  Smart-Teleprompter-by-Raghav-1.5.apk  to the phone (WhatsApp it to yourself,
+   Google Drive, or a USB cable) and tap it.
+2. Android asks whether to allow installing apps from that source (Chrome, Files, WhatsApp…).
+   Tap  Settings  → turn on  "Allow from this source"  → go back → Install.
+3. If Play Protect warns that the app is unknown, tap  More details  →  Install anyway.
+4. Open "Teleprompter" from your apps (the icon is a small prompter screen).
+5. The first time you press ▶, allow the microphone.
+
+Updating from an earlier version: install the new file over the old one. Your scripts stay.
+
+
+2. FIRST RECORDING
+------------------
+1. Tap a script (a sample is included), or tap  New  and paste your own.
+2. Press ▶. After the 3-2-1 countdown, start talking. The script follows your voice.
+3. Pause by tapping the screen, then ▶ (or use a Bluetooth remote).
+4. Lost your place? Long-press a word to continue from there.
+
+
+3. IN A TELEPROMPTER RIG
+------------------------
+1. Tap  Prompter  in the bottom bar: the text flips for the glass and the screen locks
+   to landscape. Tap it again to undo.
+2. If the text still looks wrong in the glass, open  Settings  and try
+   "Mirror left-right" instead.
+
+
+4. LAPTOP REMOTE (OPTIONAL)
+---------------------------
+1. Put the laptop on the same Wi-Fi as the phone (or on the phone's hotspot).
+2. In the app tap  Remote  → switch Remote on. It shows two addresses.
+3. On the laptop, open the  https://…:8443  address in Google Chrome.
+   The first time Chrome says "Your connection is not private":
+   click  Advanced  →  Proceed. It's your own phone.
+4. Click  Listen on laptop  and allow the microphone to let the laptop do the listening
+   (useful when the phone is far away in a rig).
+
+If the laptop can't connect: office and hotel Wi-Fi often block devices from talking to
+each other. Use the phone's hotspot instead.

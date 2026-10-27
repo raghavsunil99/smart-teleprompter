@@ -12,5 +12,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "SmartTelePrompter"
+rootProject.name = "SmartTeleprompter"
 include(":app")

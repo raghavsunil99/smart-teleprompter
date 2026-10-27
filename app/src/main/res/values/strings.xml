@@ -1,3 +1,5 @@
 <resources>
-    <string name="app_name">Smart Tele Prompter</string>
+    <string name="app_name">Smart Teleprompter</string>
+    <!-- Short name under the launcher icon (the full name gets cut off there). -->
+    <string name="launcher_name">Teleprompter</string>
 </resources>

@@ -1,0 +1,38 @@
+name: Bug report
+description: Something in Smart Teleprompter doesn't work as expected
+labels: [bug]
+body:
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where
+      options: [Phone app, Laptop remote, Both]
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead. Screenshots or a short screen recording help.
+    validations:
+      required: true
+  - type: dropdown
+    id: script
+    attributes:
+      label: Script written in
+      options: [Tenglish, Telugu letters, English, Mixed]
+  - type: dropdown
+    id: mic
+    attributes:
+      label: Listening with
+      options: [Phone mic, Laptop mic, Steady mode (no mic)]
+  - type: input
+    id: phone
+    attributes:
+      label: Phone model and Android version
+      placeholder: "Pixel 7, Android 15"
+  - type: input
+    id: version
+    attributes:
+      label: Smart Teleprompter version
+      placeholder: "1.5"
