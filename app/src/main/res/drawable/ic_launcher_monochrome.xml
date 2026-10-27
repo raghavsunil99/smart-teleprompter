@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Smart Tele Prompter icon: a prompter screen with the reading band, the highlighted word, and a voice wave. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:pathData="M36.6,37 H67.4 A1.6,1.6 0 0 1 69,38.6 V38.6 A1.6,1.6 0 0 1 67.4,40.2 H36.6 A1.6,1.6 0 0 1 35,38.6 V38.6 A1.6,1.6 0 0 1 36.6,37 Z" android:fillColor="#FFFFFFFF" android:fillAlpha="0.45" />
+    <path android:pathData="M31.01,44 H76.99 A0.01,0.01 0 0 1 77,44.01 V53.99 A0.01,0.01 0 0 1 76.99,54 H31.01 A0.01,0.01 0 0 1 31,53.99 V44.01 A0.01,0.01 0 0 1 31.01,44 Z" android:fillColor="#FFFFFFFF" android:fillAlpha="0.5" />
+    <path android:pathData="M37,45.6 H45 A2,2 0 0 1 47,47.6 V50.4 A2,2 0 0 1 45,52.4 H37 A2,2 0 0 1 35,50.4 V47.6 A2,2 0 0 1 37,45.6 Z" android:fillColor="#FFFFFFFF" android:fillAlpha="1" />
+    <path android:pathData="M50.6,47.4 H69.4 A1.6,1.6 0 0 1 71,49.0 V49.0 A1.6,1.6 0 0 1 69.4,50.6 H50.6 A1.6,1.6 0 0 1 49,49.0 V49.0 A1.6,1.6 0 0 1 50.6,47.4 Z" android:fillColor="#FFFFFFFF" android:fillAlpha="1" />
+    <path android:pathData="M36.6,59 H59.4 A1.6,1.6 0 0 1 61,60.6 V60.6 A1.6,1.6 0 0 1 59.4,62.2 H36.6 A1.6,1.6 0 0 1 35,60.6 V60.6 A1.6,1.6 0 0 1 36.6,59 Z" android:fillColor="#FFFFFFFF" android:fillAlpha="0.45" />
+    <path android:pathData="M46.5,74 H46.5 A1.5,1.5 0 0 1 48,75.5 V78.5 A1.5,1.5 0 0 1 46.5,80 H46.5 A1.5,1.5 0 0 1 45,78.5 V75.5 A1.5,1.5 0 0 1 46.5,74 Z" android:fillColor="#FFFFFFFF" android:fillAlpha="1" />
+    <path android:pathData="M51.5,71.5 H51.5 A1.5,1.5 0 0 1 53,73.0 V81.0 A1.5,1.5 0 0 1 51.5,82.5 H51.5 A1.5,1.5 0 0 1 50,81.0 V73.0 A1.5,1.5 0 0 1 51.5,71.5 Z" android:fillColor="#FFFFFFFF" android:fillAlpha="1" />
+    <path android:pathData="M56.5,73 H56.5 A1.5,1.5 0 0 1 58,74.5 V79.5 A1.5,1.5 0 0 1 56.5,81 H56.5 A1.5,1.5 0 0 1 55,79.5 V74.5 A1.5,1.5 0 0 1 56.5,73 Z" android:fillColor="#FFFFFFFF" android:fillAlpha="1" />
+    <path android:pathData="M61.5,75 H61.5 A1.5,1.5 0 0 1 63,76.5 V77.5 A1.5,1.5 0 0 1 61.5,79 H61.5 A1.5,1.5 0 0 1 60,77.5 V76.5 A1.5,1.5 0 0 1 61.5,75 Z" android:fillColor="#FFFFFFFF" android:fillAlpha="1" />
+</vector>
