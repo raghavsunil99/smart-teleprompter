@@ -1,29 +1,40 @@
 <p align="center">
-  <img src="docs/images/hero.png" alt="Smart Teleprompter by Raghav: a teleprompter that listens and scrolls as you speak" width="100%">
+  <img src="docs/images/hero.png" alt="Smart Teleprompter by Raghav: a teleprompter that listens and scrolls as you speak, in Telugu, Malayalam, Tamil and English" width="100%">
 </p>
 
 <p align="center">
   <a href="https://github.com/raghavsunil99/smart-teleprompter/releases/latest"><img src="https://img.shields.io/github/v/release/raghavsunil99/smart-teleprompter?label=download&color=ffc94d&style=for-the-badge" alt="Download"></a>
+  <a href="https://github.com/raghavsunil99/smart-teleprompter/releases"><img src="https://img.shields.io/github/downloads/raghavsunil99/smart-teleprompter/total?color=0a84ff&style=for-the-badge" alt="Downloads"></a>
   <img src="https://img.shields.io/badge/Android-8%2B-3DDC84?logo=android&logoColor=fff&style=for-the-badge" alt="Android 8+">
   <img src="https://img.shields.io/badge/Laptop%20remote-Chrome-4285F4?logo=googlechrome&logoColor=fff&style=for-the-badge" alt="Laptop remote in Chrome">
 </p>
 
 <p align="center">
   <b>Smart Teleprompter listens while you talk and scrolls your script along with you.</b><br>
-  Made for <b>Telugu, Malayalam, Tamil and English</b> creators: write scripts in their own letters or type them in English letters.
+  For <b>Telugu, Malayalam, Tamil and English</b> creators. Write scripts in their own letters or type them in English letters.
 </p>
 
 <p align="center">
   <a href="#-download">Download</a> ·
   <a href="#-features">Features</a> ·
+  <a href="#-languages">Languages</a> ·
   <a href="#-laptop-remote">Laptop remote</a> ·
   <a href="#-in-a-teleprompter-rig">Teleprompter rig</a> ·
-  <a href="#build-from-source">Build from source</a>
+  <a href="#-questions">Questions</a> ·
+  <a href="CHANGELOG.md">Changelog</a>
 </p>
 
 <p align="center">
-  <img src="docs/images/reading.png" alt="Reading a Telugu script typed in English letters: the current word is highlighted in the red reading band, words already read fade to grey" width="100%">
+  <img src="docs/images/reading.png" alt="Reading a script: the current word glides along in the red reading band, words already read fade to grey" width="100%">
 </p>
+
+## 🆕 What's new in 1.6
+
+- **Four languages**: Telugu, Malayalam, Tamil and English, each recognised in its own language.
+- **Language per script**: worked out from the letters, or chosen in the editor, in Settings or from the laptop.
+- **Malayalam and Tamil scripts** follow you whether they're written in their own letters or typed in English letters.
+
+Full history in the [changelog](CHANGELOG.md).
 
 ## ⬇ Download
 
@@ -32,7 +43,7 @@
 | 🤖 **Android** 8+ phone or tablet | [Smart-Teleprompter-by-Raghav-1.6.apk](https://github.com/raghavsunil99/smart-teleprompter/releases/latest) | Allow installing from your browser or Files app, then **Install anyway** |
 | 💻 **Laptop remote** (optional) | Nothing to install | Open the address the app shows in **Chrome** on a laptop on the same Wi-Fi |
 
-Step-by-step instructions: [HOW TO INSTALL SMART TELEPROMPTER.txt](docs/HOW%20TO%20INSTALL%20SMART%20TELEPROMPTER.txt)
+Step-by-step instructions: [HOW TO INSTALL SMART TELEPROMPTER.txt](docs/HOW%20TO%20INSTALL%20SMART%20TELEPROMPTER.txt). Installing a new version over an old one keeps your scripts.
 
 ## ✨ Features
 
@@ -41,7 +52,7 @@ Step-by-step instructions: [HOW TO INSTALL SMART TELEPROMPTER.txt](docs/HOW%20TO
 <td width="50%" valign="top">
 
 ### 🎙 Voice Follow
-Start talking and the script moves with you. It listens in your script's language, works out which word you're on, and scrolls at your own pace like cruise control: steady while you speak, gliding to a stop when you pause.
+Start talking and the script moves with you. It works out which word you're on and scrolls at your own pace, like cruise control: steady while you speak, gliding to a stop when you pause.
 
 </td>
 <td width="50%" valign="top">
@@ -58,32 +69,50 @@ One tap flips the text for a mirror rig and locks landscape. While you record, t
 <tr>
 <td width="50%" valign="top">
 
-### 🔤 Telugu, Malayalam, Tamil and English
-Each script listens in its own language: detected from its letters, or chosen in the editor. Write in the language's own letters or type it in English letters: నమస్కారం (Telugu), നമസ്കാരം (Malayalam) and *namaskaram* all match, and so do வணக்கம் and *vanakkam* in Tamil. English words like *video* or *subscribe* are understood too.
-
-</td>
-<td width="50%" valign="top">
-
 ### 🔁 Retakes and sections
-Start a sentence again and the script jumps back to it. Mark parts with `# Intro`, `# Tip 1` and jump between them. Each script remembers where you stopped.
+Start a sentence again and the script glides back to it. Mark parts with `# Intro`, `# Tip 1` and jump between them. Each script remembers where you stopped.
 
 </td>
-</tr>
-<tr>
 <td width="50%" valign="top">
 
 ### 🎮 Remotes and pedals
 Bluetooth clickers, foot pedals, keyboards and camera-shutter remotes work out of the box: play/pause, next and previous line, back to start.
 
 </td>
+</tr>
+<tr>
 <td width="50%" valign="top">
 
 ### ⏱ The details
-A 3-2-1 countdown, a gliding word highlight (or whole line, or none), Steady mode at a fixed speed, adjustable reading band, text size and brightness.
+A 3-2-1 countdown, a gliding word highlight (or whole line, or none), Steady mode at a fixed speed, and adjustable reading band, text size and brightness.
+
+</td>
+<td width="50%" valign="top">
+
+### 🔒 Private by design
+No account and no ads. Scripts stay on your phone. The laptop remote works over your own Wi-Fi, with an optional PIN.
 
 </td>
 </tr>
 </table>
+
+## 🗣 Languages
+
+| Language | Write the script in | Example: these all match |
+|---|---|---|
+| **Telugu** | తెలుగు letters or English letters | నమస్కారం · *namaskaram* |
+| **Malayalam** | മലയാളം letters or English letters | നമസ്കാരം · *namaskaram* |
+| **Tamil** | தமிழ் letters or English letters | வணக்கம் · *vanakkam* |
+| **English** | English | *Hello everyone* |
+
+Scripts in Telugu, Malayalam or Tamil letters are recognised automatically. For a script typed in English letters, choose the language you'll speak in the editor ("Spoken in"). English words inside an Indian-language script, like *video* or *subscribe*, are understood too.
+
+<p align="center">
+  <img src="docs/images/languages.png" alt="Sample scripts in Telugu, Malayalam, Tamil and English, and the editor's Spoken in choice" width="100%">
+</p>
+<p align="center">
+  <img src="docs/images/tamil.png" alt="Following a Tamil script: the current word highlighted in the reading band" width="100%">
+</p>
 
 ## 💻 Laptop remote
 
@@ -91,11 +120,11 @@ Turn on **Remote** in the app and open the address it shows in Chrome on your la
 
 - **Live script**: see exactly where the phone is, and click any word to make it continue from there.
 - **Laptop mic**: if the phone is a couple of metres away in a rig, let the laptop in front of you do the listening. The phone follows it, and switches back to its own mic if the laptop stops.
-- **Control everything**: play, mode, lines, sections, text size, speed, flip, with keyboard shortcuts.
+- **Control everything**: play, mode, language, lines, sections, text size, speed and flip, with keyboard shortcuts.
 - **Write scripts on the laptop** and send them to the phone.
 
 <p align="center">
-  <img src="docs/images/remote.png" alt="The laptop remote: the live script with the current word highlighted, controls, sections and the script list" width="100%">
+  <img src="docs/images/remote.png" alt="The laptop remote: the live Malayalam script with the current word highlighted, controls with the Language switch, and the script list" width="100%">
 </p>
 
 > The laptop mic needs the **https** address. The first time, Chrome says "Your connection is not private": click **Advanced → Proceed**. It's your own phone on your own Wi-Fi.
@@ -106,7 +135,24 @@ Turn on **Remote** in the app and open the address it shows in Chrome on your la
 2. Record on another phone or camera behind the glass.
 3. Press ▶ on the phone, a remote, or the laptop, and start talking after the countdown.
 
-If the phone is far from you, use the **laptop mic** (above). If you lose your place, long-press a word on the phone or click it on the laptop.
+If the phone is far from you, use the **laptop mic**. If you lose your place, long-press a word on the phone or click it on the laptop.
+
+## ❓ Questions
+
+**It says the language isn't available.**
+Speech recognition comes from Google. Open the Google app → Settings → Voice → Languages and add Telugu, Malayalam or Tamil (you can also download it for offline use).
+
+**Does it need internet?**
+Usually, yes: recognition runs on Google's speech service unless the language is downloaded for offline use.
+
+**The text is mirrored the wrong way in my rig.**
+Most phone rigs need **Prompter** (upside-down). If yours reads backwards, open Settings and use **Mirror left-right** instead.
+
+**The laptop can't connect to the phone.**
+Both must be on the same Wi-Fi. Office and hotel networks often block devices from reaching each other; use the phone's hotspot instead.
+
+**Why does the app show a green microphone dot?**
+That's Android's privacy indicator while the phone's mic is listening. Apps can't hide it.
 
 ---
 
@@ -143,6 +189,5 @@ Needs JDK 17 and the Android SDK (platform 35).
 
 ## Notes
 
-- Speech recognition comes from the phone's Google speech service (or Chrome on the laptop), so it usually needs internet. If a language isn't available, add it in the Google app: Settings → Voice → Languages.
 - The https address uses a self-signed certificate bundled in the app, which is why Chrome asks you to proceed the first time.
-- Android shows its green microphone indicator while the phone's mic is listening; apps can't hide it.
+- The app id is still `com.telugu.prompter` (from its first version), so new versions install over old ones and keep your scripts.
