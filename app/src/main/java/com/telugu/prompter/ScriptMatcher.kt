@@ -14,8 +14,8 @@ data class Section(val title: String, val wordIndex: Int, val charStart: Int)
  * The recognizer gives us a growing hypothesis of what was said in the current
  * utterance. We take the last few heard words and locally align them (Smith-Waterman)
  * against a window of the script just around the current position. Words are compared
- * with a fuzzy similarity on a phonetic key, so Telugu speech can follow a script typed
- * in Telugu letters or in Tenglish, despite small spelling differences.
+ * with a fuzzy similarity on a phonetic key, so speech can follow a script written in Telugu,
+ * Malayalam or Tamil letters or typed in English letters, despite small spelling differences.
  *
  * Position normally only moves forward. The one exception is a retake: when the speaker
  * clearly starts an earlier sentence again (3+ words matching from that sentence's start,
@@ -23,12 +23,12 @@ data class Section(val title: String, val wordIndex: Int, val charStart: Int)
  *
  * Lines starting with `#` are section headings: shown on screen, never matched.
  */
-class ScriptMatcher(text: String) {
+class ScriptMatcher(text: String, val language: ScriptLanguage = ScriptLanguage.DEFAULT) {
 
     private val headingRanges: List<Pair<IntRange, String>> =
         HEADING_REGEX.findAll(text).map { it.range to it.groupValues[1].trim() }.toList()
 
-    val words: List<ScriptWord> = tokenize(text).filter { w -> headingRanges.none { w.start in it.first } }
+    val words: List<ScriptWord> = tokenize(text, language).filter { w -> headingRanges.none { w.start in it.first } }
 
     val sections: List<Section> = headingRanges.map { (range, title) ->
         val idx = words.indexOfFirst { it.start > range.last }.let { if (it < 0) words.size else it }
@@ -134,7 +134,7 @@ class ScriptMatcher(text: String) {
      */
     fun onHeard(hypothesis: String): Boolean {
         if (words.isEmpty()) return false
-        val heard = tokenize(hypothesis).map { it.norm }.filter { it.isNotEmpty() }
+        val heard = tokenize(hypothesis, language).map { it.norm }.filter { it.isNotEmpty() }
         if (heard.isEmpty()) return false
         val firstNew = firstNewWord(heard)
         previousHeard = heard
@@ -229,17 +229,18 @@ class ScriptMatcher(text: String) {
 
         private val WORD_REGEX = Regex("[\\p{L}\\p{M}\\p{N}\\u200C\\u200D]+")
 
-        fun tokenize(text: String): List<ScriptWord> =
+        fun tokenize(text: String, language: ScriptLanguage = ScriptLanguage.DEFAULT): List<ScriptWord> =
             WORD_REGEX.findAll(text).map {
-                ScriptWord(it.value, normalize(it.value), it.range.first, it.range.last + 1)
+                ScriptWord(it.value, normalize(it.value, language), it.range.first, it.range.last + 1)
             }.toList()
 
-        /** Telugu script and Tenglish both become the same Latin sound key (see [Phonetic]). */
-        fun normalize(word: String): String =
+        /** Native letters and English-letter typing both become the same Latin sound key (see [Phonetic]). */
+        fun normalize(word: String, language: ScriptLanguage = ScriptLanguage.DEFAULT): String =
             Phonetic.normalize(
                 Normalizer.normalize(word, Normalizer.Form.NFC)
                     .replace("\u200C", "")
-                    .replace("\u200D", "")
+                    .replace("\u200D", ""),
+                language,
             )
 
         /** Similarity of two sound keys, falling back to their consonant skeletons. */

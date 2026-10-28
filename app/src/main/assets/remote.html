@@ -167,6 +167,15 @@
             <span id="speed" class="value"></span>
           </div>
           <div class="row">
+            <span class="label">Language</span>
+            <span class="seg" role="group" aria-label="Language of this script" id="langSeg">
+              <button data-lang="te">Telugu</button>
+              <button data-lang="ml">Malayalam</button>
+              <button data-lang="ta">Tamil</button>
+              <button data-lang="en">English</button>
+            </span>
+          </div>
+          <div class="row">
             <span class="label">Display</span>
             <button id="flip" data-cmd="flip">⇅ Upside-down</button>
             <button id="mirror" data-cmd="mirror">⇆ Mirror</button>
@@ -195,7 +204,14 @@
         <div class="section" id="scriptList"></div>
         <div class="section hidden" id="editor">
           <input id="sTitle" placeholder="Title">
-          <textarea id="sBody" placeholder="Paste or type your script (Tenglish or Telugu). Start a line with # to mark a section."></textarea>
+          <select id="sLang" aria-label="Language of the script" style="width:auto">
+            <option value="">Language: from the letters</option>
+            <option value="te">Telugu</option>
+            <option value="ml">Malayalam</option>
+            <option value="ta">Tamil</option>
+            <option value="en">English</option>
+          </select>
+          <textarea id="sBody" placeholder="Paste or type your script in Telugu, Malayalam, Tamil or English. Start a line with # to mark a section."></textarea>
           <div class="row">
             <button id="saveOpen" class="primary">Save &amp; open on phone</button>
             <button id="save">Save</button>
@@ -419,8 +435,12 @@
     $('mirror').classList.toggle('on', !!s.mirror);
 
     $('micPill').className = 'pill ' + (s.mode === 'steady' ? '' : s.laptopMic ? 'ok blue' : 'ok');
+    const lang = s.languageLabel ? ' · ' + s.languageLabel : '';
     $('micText').textContent = s.mode === 'steady' ? 'Steady scroll (no mic)'
-      : s.laptopMic ? 'Following laptop mic' : (s.hearing ? 'Phone mic · hearing you' : 'Phone mic');
+      : (s.laptopMic ? 'Following laptop mic' : (s.hearing ? 'Phone mic · hearing you' : 'Phone mic')) + lang;
+    document.querySelectorAll('#langSeg button').forEach((b) => b.classList.toggle('on', onPrompter && b.dataset.lang === s.language));
+    // Laptop mic follows the script's language; restart recognition if it changed mid-way.
+    if (listening && s.locale && rec && rec.lang !== s.locale) { try { rec.abort(); } catch (e) {} }
     if (!listening) $('heard').textContent = s.heard ? (s.laptopMic ? '💻 ' : '🎙 ') + s.heard : '';
 
     const list = onPrompter ? (s.sections || []) : [];
@@ -474,8 +494,11 @@
     editingId = id || '';
     $('saveMsg').textContent = '';
     if (id) {
-      try { const s = await api('/api/script?id=' + encodeURIComponent(id)); $('sTitle').value = s.title; $('sBody').value = s.body; } catch (e) { return; }
-    } else { $('sTitle').value = ''; $('sBody').value = ''; }
+      try {
+        const s = await api('/api/script?id=' + encodeURIComponent(id));
+        $('sTitle').value = s.title; $('sBody').value = s.body; $('sLang').value = s.language || '';
+      } catch (e) { return; }
+    } else { $('sTitle').value = ''; $('sBody').value = ''; $('sLang').value = ''; }
     $('editor').classList.remove('hidden');
     $('sBody').focus();
   }
@@ -485,7 +508,7 @@
     if (!body.trim()) { $('saveMsg').textContent = 'The script is empty.'; return; }
     $('saveMsg').textContent = 'Saving…';
     try {
-      const r = await api('/api/script', { id: editingId, title: $('sTitle').value, body, open: open ? '1' : '0' });
+      const r = await api('/api/script', { id: editingId, title: $('sTitle').value, body, language: $('sLang').value, open: open ? '1' : '0' });
       editingId = r.id;
       $('saveMsg').textContent = open ? 'Saved and opened on the phone ✓' : 'Saved ✓';
       liveKey = ''; // reload the live view if it shows this script
@@ -548,7 +571,7 @@
     if (!window.isSecureContext) { explainSecureContext(); return; }
     listening = true; finals = ''; lastSent = '';
     rec = new SR();
-    rec.lang = 'te-IN';
+    rec.lang = status.locale || 'te-IN';
     rec.continuous = true;
     rec.interimResults = true;
     rec.maxAlternatives = 1;
@@ -565,11 +588,17 @@
     };
     rec.onerror = (e) => {
       if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { stopMic(); explainSecureContext(); }
-      else if (e.error === 'language-not-supported') { stopMic(); micMsg('Chrome cannot recognise Telugu (te-IN) here.'); }
+      else if (e.error === 'language-not-supported') { stopMic(); micMsg('Chrome cannot recognise ' + (status.languageLabel || 'this language') + ' here.'); }
       else if (e.error === 'network') micMsg('Speech service unreachable — the laptop needs internet. Retrying…');
     };
     // Chrome ends sessions after silences or about a minute; keep it going.
-    rec.onend = () => { if (listening) setTimeout(() => { try { rec.start(); } catch (err) {} }, 100); };
+    rec.onend = () => {
+      if (!listening) return;
+      setTimeout(() => {
+        if (status.locale && rec.lang !== status.locale) rec.lang = status.locale; // language switched
+        try { rec.start(); } catch (err) {}
+      }, 100);
+    };
     rec.onstart = () => micMsg('');
     try { rec.start(); } catch (err) {}
     startLevel();
@@ -599,6 +628,7 @@
   $('modeSteady').onclick = () => cmd('mode', 'steady');
   $('modeVoice').onclick = () => cmd('mode', 'voice');
   document.querySelectorAll('[data-cmd]').forEach((b) => { b.onclick = () => cmd(b.dataset.cmd); });
+  document.querySelectorAll('#langSeg button').forEach((b) => { b.onclick = () => cmd('language', b.dataset.lang); });
 
   document.addEventListener('keydown', (e) => {
     const t = e.target.tagName;

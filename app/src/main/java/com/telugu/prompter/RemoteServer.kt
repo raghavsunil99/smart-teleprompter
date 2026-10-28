@@ -18,7 +18,7 @@ import java.util.concurrent.CopyOnWriteArraySet
  *   POST /api/cmd       cmd=play|pause|toggle|mode|faster|slower|bigger|smaller|up|down|top|flip|mirror [&value=]
  *   GET  /api/scripts   list of scripts
  *   GET  /api/script    ?id=  one script
- *   POST /api/script    id=&title=&body=  save (and open on the phone)
+ *   POST /api/script    id=&title=&body=&language=&open=  save (and open on the phone)
  *   POST /api/heard     text=  words heard by the laptop's mic (empty text = "still listening")
  *   WS   /ws?pin=       one open connection for all of the above, with no per-request cost:
  *                       laptop → phone: "cmd\t<name>\t<value>", "heard\t<text>", "ping"
@@ -45,8 +45,8 @@ class RemoteServer(
         fun command(cmd: String, value: String?): Boolean
         fun scriptsJson(): String
         fun scriptJson(id: String): String?
-        /** Saves the script (opening it on the phone if [open]) and returns its id. */
-        fun saveScript(id: String?, title: String, body: String, open: Boolean = true): String
+        /** Saves the script (opening it on the phone if [open]) and returns its id. [language]: a code, or null for auto. */
+        fun saveScript(id: String?, title: String, body: String, open: Boolean = true, language: String? = null): String
         /** Words heard by the laptop's mic; blank text is just a heartbeat. */
         fun heard(text: String)
     }
@@ -163,7 +163,10 @@ class RemoteServer(
                 uri == "/api/script" && session.method == Method.POST -> {
                     val p = formParams(session)
                     val body = p["body"]?.takeIf { it.isNotBlank() } ?: return error(Response.Status.BAD_REQUEST, "body required")
-                    val id = api.saveScript(p["id"]?.takeIf { it.isNotBlank() }, p["title"].orEmpty(), body, open = p["open"] != "0")
+                    val id = api.saveScript(
+                        p["id"]?.takeIf { it.isNotBlank() }, p["title"].orEmpty(), body,
+                        open = p["open"] != "0", language = p["language"]?.takeIf { it.isNotBlank() },
+                    )
                     json("{\"ok\":true,\"id\":${Json.str(id)}}")
                 }
                 else -> error(Response.Status.NOT_FOUND, "not found")

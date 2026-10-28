@@ -67,6 +67,7 @@ class MainActivity : ComponentActivity() {
 
                     is Screen.Edit -> EditorScreen(
                         script = s.script,
+                        defaultLanguage = ScriptLanguage.fromCode(settings.defaultLanguage) ?: ScriptLanguage.DEFAULT,
                         onSave = {
                             store.upsert(it)
                             scripts = store.loadScripts()
@@ -75,7 +76,7 @@ class MainActivity : ComponentActivity() {
                         onCancel = { screen = Screen.List },
                     )
 
-                    is Screen.Prompt -> key(s.script.id, s.script.body) {
+                    is Screen.Prompt -> key(s.script.id, s.script.body, s.script.language) {
                         PrompterScreen(
                             script = s.script,
                             settings = settings,
@@ -84,6 +85,12 @@ class MainActivity : ComponentActivity() {
                             onRemote = { showRemote = true },
                             savedPosition = remember { store.loadPosition(s.script) },
                             onSavePosition = { store.savePosition(s.script, it) },
+                            onLanguageChange = { code ->
+                                val updated = s.script.copy(language = code)
+                                store.upsert(updated)
+                                scripts = store.loadScripts()
+                                screen = Screen.Prompt(updated)
+                            },
                             onBack = { screen = Screen.List },
                         )
                     }

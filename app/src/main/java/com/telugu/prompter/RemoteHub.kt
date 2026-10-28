@@ -131,10 +131,11 @@ class RemoteHub(
         override fun scriptsJson() = Json.arr(store.loadScripts().map { Json.obj("id" to it.id, "title" to it.title) })
 
         override fun scriptJson(id: String) = store.loadScripts().find { it.id == id }
-            ?.let { Json.obj("id" to it.id, "title" to it.title, "body" to it.body) }
+            ?.let { Json.obj("id" to it.id, "title" to it.title, "body" to it.body, "language" to it.language) }
 
-        override fun saveScript(id: String?, title: String, body: String, open: Boolean): String {
-            val script = Script(id ?: ScriptStore.newId(), title.ifBlank { body.trim().take(30) }, body)
+        override fun saveScript(id: String?, title: String, body: String, open: Boolean, language: String?): String {
+            val lang = ScriptLanguage.fromCode(language)?.code
+            val script = Script(id ?: ScriptStore.newId(), title.ifBlank { body.trim().take(30) }, body, lang)
             store.upsert(script)
             commands.tryEmit(if (open) RemoteCommand.OpenScript(script.id) else RemoteCommand.ScriptsChanged)
             return script.id
@@ -218,7 +219,7 @@ class RemoteHub(
         val PROMPTER_COMMANDS = setOf(
             "play", "pause", "toggle", "mode", "faster", "slower",
             "bigger", "smaller", "up", "down", "top", "flip", "mirror",
-            "section", "nextSection", "prevSection", "seek",
+            "section", "nextSection", "prevSection", "seek", "language",
         )
 
         /** IPv4 addresses on Wi-Fi / hotspot interfaces the laptop can reach. */

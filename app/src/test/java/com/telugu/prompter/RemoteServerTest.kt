@@ -29,7 +29,7 @@ class RemoteServerTest {
         }
         override fun scriptsJson() = Json.arr(listOf(Json.obj("id" to "a", "title" to "Intro")))
         override fun scriptJson(id: String) = if (id == "a") Json.obj("id" to "a", "title" to "Intro", "body" to "x") else null
-        override fun saveScript(id: String?, title: String, body: String, open: Boolean): String {
+        override fun saveScript(id: String?, title: String, body: String, open: Boolean, language: String?): String {
             saved += Triple(id, title, body)
             return id ?: "new-id"
         }
@@ -113,7 +113,7 @@ class RemoteServerTest {
     }
 
     @Test
-    fun savesTeluguAndTenglishScriptsIntact() {
+    fun savesNativeAndEnglishLetterScriptsIntact() {
         val body = "నమస్కారం అందరికీ!\nNamaskaram andariki & \"welcome\" 100%"
         val (code, resp) = call("/api/script", form = mapOf("title" to "తెలుగు Intro", "body" to body))
         assertEquals(200, code)

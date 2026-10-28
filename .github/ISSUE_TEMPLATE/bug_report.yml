@@ -19,8 +19,8 @@ body:
   - type: dropdown
     id: script
     attributes:
-      label: Script written in
-      options: [Tenglish, Telugu letters, English, Mixed]
+      label: Language of the script
+      options: [Telugu, Malayalam, Tamil, English, Mixed]
   - type: dropdown
     id: mic
     attributes:

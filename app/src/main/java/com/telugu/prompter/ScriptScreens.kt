@@ -20,6 +20,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
@@ -105,9 +106,13 @@ fun ScriptListScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EditorScreen(script: Script, onSave: (Script) -> Unit, onCancel: () -> Unit) {
+fun EditorScreen(script: Script, defaultLanguage: ScriptLanguage, onSave: (Script) -> Unit, onCancel: () -> Unit) {
     var title by remember { mutableStateOf(script.title) }
     var body by remember { mutableStateOf(script.body) }
+    // null = not chosen: the language of the letters is used (or the default for English letters).
+    var chosen by remember { mutableStateOf(script.language) }
+    val detected = ScriptLanguage.detect(body)
+    val language = ScriptLanguage.fromCode(chosen) ?: detected ?: defaultLanguage
     Scaffold(
         topBar = {
             TopAppBar(
@@ -115,7 +120,7 @@ fun EditorScreen(script: Script, onSave: (Script) -> Unit, onCancel: () -> Unit)
                 navigationIcon = { TextButton(onClick = onCancel) { Text("Cancel") } },
                 actions = {
                     TextButton(
-                        onClick = { onSave(script.copy(title = title.ifBlank { body.take(30) }, body = body)) },
+                        onClick = { onSave(script.copy(title = title.ifBlank { body.take(30) }, body = body, language = chosen)) },
                         enabled = body.isNotBlank(),
                     ) { Text("Save") }
                 },
@@ -128,9 +133,19 @@ fun EditorScreen(script: Script, onSave: (Script) -> Unit, onCancel: () -> Unit)
                 label = { Text("Title") }, singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
+            Text(
+                "Spoken in" + if (chosen == null && detected != null) " (detected from the letters)" else "",
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.padding(top = 12.dp),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ScriptLanguage.entries.forEach { l ->
+                    FilterChip(selected = language == l, onClick = { chosen = l.code }, label = { Text(l.label) })
+                }
+            }
             OutlinedTextField(
                 value = body, onValueChange = { body = it },
-                label = { Text("Script (Tenglish or Telugu)") },
+                label = { Text("Script (Telugu, Malayalam, Tamil or English)") },
                 textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = 20.sp, lineHeight = 32.sp),
                 modifier = Modifier.fillMaxWidth().weight(1f).padding(top = 12.dp),
             )

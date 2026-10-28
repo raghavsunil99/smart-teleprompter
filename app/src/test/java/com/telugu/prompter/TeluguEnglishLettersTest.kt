@@ -5,7 +5,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class TenglishTest {
+class TeluguEnglishLettersTest {
 
     private val script = "Namaskaram andariki. Ee roju manam oka kotha vishayam gurinchi maatladukundaam. " +
         "Meeru ee video chivari varaku chudandi. Channel ni subscribe cheyyandi."
@@ -30,7 +30,7 @@ class TenglishTest {
     }
 
     @Test
-    fun followsTeluguSpeechThroughTenglishScript() {
+    fun followsTeluguSpeechThroughEnglishLetterScript() {
         val m = ScriptMatcher(script)
         assertTrue(m.onHeard("నమస్కారం అందరికీ"))
         assertEquals(2, m.position)

@@ -10,7 +10,7 @@
 
 <p align="center">
   <b>Smart Teleprompter listens while you talk and scrolls your script along with you.</b><br>
-  Made for Telugu creators: scripts in Telugu letters, in Tenglish (Telugu typed in English letters), or in English.
+  Made for <b>Telugu, Malayalam, Tamil and English</b> creators: write scripts in their own letters or type them in English letters.
 </p>
 
 <p align="center">
@@ -22,14 +22,14 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/reading.png" alt="Reading a Tenglish script: the current word is highlighted in the red reading band, words already read fade to grey" width="100%">
+  <img src="docs/images/reading.png" alt="Reading a Telugu script typed in English letters: the current word is highlighted in the red reading band, words already read fade to grey" width="100%">
 </p>
 
 ## ⬇ Download
 
 | Device | File | Notes |
 |---|---|---|
-| 🤖 **Android** 8+ phone or tablet | [Smart-Teleprompter-by-Raghav-1.5.apk](https://github.com/raghavsunil99/smart-teleprompter/releases/latest) | Allow installing from your browser or Files app, then **Install anyway** |
+| 🤖 **Android** 8+ phone or tablet | [Smart-Teleprompter-by-Raghav-1.6.apk](https://github.com/raghavsunil99/smart-teleprompter/releases/latest) | Allow installing from your browser or Files app, then **Install anyway** |
 | 💻 **Laptop remote** (optional) | Nothing to install | Open the address the app shows in **Chrome** on a laptop on the same Wi-Fi |
 
 Step-by-step instructions: [HOW TO INSTALL SMART TELEPROMPTER.txt](docs/HOW%20TO%20INSTALL%20SMART%20TELEPROMPTER.txt)
@@ -41,7 +41,7 @@ Step-by-step instructions: [HOW TO INSTALL SMART TELEPROMPTER.txt](docs/HOW%20TO
 <td width="50%" valign="top">
 
 ### 🎙 Voice Follow
-Start talking and the script moves with you. It listens in Telugu, works out which word you're on, and scrolls at your own pace like cruise control: steady while you speak, gliding to a stop when you pause.
+Start talking and the script moves with you. It listens in your script's language, works out which word you're on, and scrolls at your own pace like cruise control: steady while you speak, gliding to a stop when you pause.
 
 </td>
 <td width="50%" valign="top">
@@ -58,8 +58,8 @@ One tap flips the text for a mirror rig and locks landscape. While you record, t
 <tr>
 <td width="50%" valign="top">
 
-### 🔤 Telugu, Tenglish and English
-Write your script however you like. *namaskaram*, *namaskaaram* and నమస్కారం all count as the same word, and English words like *video* or *subscribe* match even when they're heard as Telugu.
+### 🔤 Telugu, Malayalam, Tamil and English
+Each script listens in its own language: detected from its letters, or chosen in the editor. Write in the language's own letters or type it in English letters: నమస్కారం (Telugu), നമസ്കാരം (Malayalam) and *namaskaram* all match, and so do வணக்கம் and *vanakkam* in Tamil. English words like *video* or *subscribe* are understood too.
 
 </td>
 <td width="50%" valign="top">
@@ -123,8 +123,8 @@ Needs JDK 17 and the Android SDK (platform 35).
 
 ## How it works
 
-- **Listening**: Android's speech recognizer in Telugu (`te-IN`), with partial results, kept running across pauses (one segmented session on Android 13+). The laptop remote uses Chrome's Web Speech API and sends what it hears over a WebSocket.
-- **Matching** (`ScriptMatcher`): the last few heard words are aligned to the script near the current position. Telugu letters and Tenglish are both turned into the same Latin sound key (`Phonetic`). The further ahead a match is, the more (and the more contiguous) matching words it needs, and only newly heard words can move the position, so repeated phrases in other sections don't pull it away. A restarted sentence is a retake.
+- **Listening**: Android's speech recognizer in the script's language (`te-IN`, `ml-IN`, `ta-IN` or `en-IN`), with partial results, kept running across pauses (one segmented session on Android 13+). The laptop remote uses Chrome's Web Speech API in the same language and sends what it hears over a WebSocket.
+- **Matching** (`ScriptMatcher`): the last few heard words are aligned to the script near the current position. Telugu, Malayalam and Tamil letters, and English-letter typing, are all turned into the same Latin sound key (`Phonetic`); for Tamil, sounds its script writes with one letter (k/g, t/d, p/b) count as the same. The further ahead a match is, the more (and the more contiguous) matching words it needs, and only newly heard words can move the position, so repeated phrases in other sections don't pull it away. A restarted sentence is a retake.
 - **Scrolling** (`CruiseFollower`): scrolls at the speaker's measured pace in pixels per second and corrects drift over about two seconds, rather than chasing each burst of recognized words. Drawn with sub-pixel offsets.
 - **Remote** (`RemoteServer`, `RemoteHub`): a small web server on the phone, over http and https, serving the remote page plus a WebSocket for commands, heard words and live status.
 
@@ -132,17 +132,17 @@ Needs JDK 17 and the Android SDK (platform 35).
 
 - `app/src/main/java/com/telugu/prompter/`
   - `PrompterScreen.kt`: the prompter: scrolling, highlight, controls, settings
-  - `ScriptMatcher.kt`, `Phonetic.kt`: following the speaker through the script
+  - `ScriptMatcher.kt`, `Phonetic.kt`, `ScriptLanguage.kt`: following the speaker through the script, in each language
   - `CruiseFollower.kt`: the voice-follow scroll; `ScrollFollower.kt` is the older word-based one, kept as the smoothness baseline in tests
   - `SpeechFollower.kt`: Android speech recognition
   - `RemoteServer.kt`, `RemoteHub.kt`: laptop remote server and the Remote dialog
   - `RemoteKeys.kt`: Bluetooth remotes, pedals and keyboards
   - `ScriptStore.kt`, `ScriptScreens.kt`, `MainActivity.kt`: scripts, settings, list and editor
 - `app/src/main/assets/remote.html`: the laptop remote page
-- `app/src/test/`: matcher, Tenglish, retake, smoothness, remote server and key tests
+- `app/src/test/`: matcher, languages, retake, smoothness, remote server and key tests
 
 ## Notes
 
-- Telugu speech recognition comes from the phone's Google speech service (or Chrome on the laptop), so it usually needs internet.
+- Speech recognition comes from the phone's Google speech service (or Chrome on the laptop), so it usually needs internet. If a language isn't available, add it in the Google app: Settings → Voice → Languages.
 - The https address uses a self-signed certificate bundled in the app, which is why Chrome asks you to proceed the first time.
 - Android shows its green microphone indicator while the phone's mic is listening; apps can't hide it.

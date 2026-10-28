@@ -133,6 +133,8 @@ fun PrompterScreen(
     onRemote: () -> Unit,
     savedPosition: Int,
     onSavePosition: (Int) -> Unit,
+    /** Set this script's language (a ScriptLanguage code). */
+    onLanguageChange: (String) -> Unit,
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -143,7 +145,8 @@ fun PrompterScreen(
     val densityObj = LocalDensity.current
     val density = densityObj.density
 
-    val matcher = remember(script.body) { ScriptMatcher(script.body) }
+    val language = script.languageFor(ScriptLanguage.fromCode(settings.defaultLanguage) ?: ScriptLanguage.DEFAULT)
+    val matcher = remember(script.body, language) { ScriptMatcher(script.body, language) }
     val cruise = remember(script.body) { CruiseFollower() }
     // Hand-off from the speech side to the frame loop: a re-sync jumps instantly, a new heard
     // position is fed to cruise control (the loop knows the pixel y of each word).
@@ -174,9 +177,10 @@ fun PrompterScreen(
         }
     }
 
-    val speech = remember {
+    val speech = remember(language) {
         SpeechFollower(
             context = context,
+            language = language.locale,
             onHypothesis = { h -> onHeardText(h, fromLaptop = false) },
             onStatus = { status = it },
         )
@@ -373,6 +377,7 @@ fun PrompterScreen(
             "top" -> toTop()
             "flip" -> onSettingsChange(s.copy(flipVertical = !s.flipVertical))
             "mirror" -> onSettingsChange(s.copy(mirror = !s.mirror))
+            "language" -> ScriptLanguage.fromCode(value)?.let { onLanguageChange(it.code) }
             "section" -> value?.toIntOrNull()?.let { jumpToSection(it) }
             "seek" -> value?.toIntOrNull()?.let { offset -> seekTo(offset) }
             "nextSection" -> jumpToSection((currentSection() + 1).coerceAtMost(matcher.sections.size - 1))
@@ -442,6 +447,9 @@ fun PrompterScreen(
                 "speed" to s.manualSpeed,
                 "flip" to s.flipVertical,
                 "mirror" to s.mirror,
+                "language" to language.code,
+                "locale" to language.locale,
+                "languageLabel" to language.label,
             )
             delay(100) // the laptop page shows the position at most ~0.2 s behind
         }
@@ -729,7 +737,7 @@ fun PrompterScreen(
             val statusLine = when {
                 countdownLeft > 0 -> "Starting in $countdownLeft…"
                 resumed && !running -> "Resumed where you left off · Start to begin again"
-                else -> statusText(mode, running, status, remote.laptopMicActive)
+                else -> statusText(mode, running, status, remote.laptopMicActive, language)
             }
             val heardLine = if (mode == Mode.VOICE && running && lastHeard.isNotBlank()) {
                 (if (heardOnLaptop) "💻 " else "🎙 ") + lastHeard
@@ -745,7 +753,12 @@ fun PrompterScreen(
                     .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
                     .padding(horizontal = 8.dp, vertical = 4.dp),
             ) {
-                if (showSettings) SettingsPanel(settings, onSettingsChange, Modifier.heightIn(max = screenHeight * 0.55f))
+                if (showSettings) {
+                    SettingsPanel(
+                        settings, onSettingsChange, language, onLanguageChange,
+                        Modifier.heightIn(max = screenHeight * 0.55f),
+                    )
+                }
 
                 val modeAndStatus: @Composable () -> Unit = {
                     ModeToggle(mode, onChange = { switchMode(it) })
@@ -875,7 +888,13 @@ private fun Context.findActivity(): Activity? {
 }
 
 @Composable
-private fun SettingsPanel(s: PrompterSettings, onChange: (PrompterSettings) -> Unit, modifier: Modifier = Modifier) {
+private fun SettingsPanel(
+    s: PrompterSettings,
+    onChange: (PrompterSettings) -> Unit,
+    language: ScriptLanguage,
+    onLanguageChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Column(modifier.verticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp)) {
         SettingRow("Flip upside-down (teleprompter glass)") {
             Switch(checked = s.flipVertical, onCheckedChange = { onChange(s.copy(flipVertical = it)) })
@@ -891,6 +910,22 @@ private fun SettingsPanel(s: PrompterSettings, onChange: (PrompterSettings) -> U
                 PrompterSettings.ORIENTATION_PORTRAIT to "Portrait",
             ).forEach { (value, label) ->
                 FilterChip(selected = s.orientation == value, onClick = { onChange(s.copy(orientation = value)) }, label = { Text(label) })
+            }
+        }
+        Text("Language of this script", color = Color.White, fontSize = 14.sp)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ScriptLanguage.entries.forEach { l ->
+                FilterChip(selected = language == l, onClick = { onLanguageChange(l.code) }, label = { Text(l.label) })
+            }
+        }
+        Text("Default for scripts typed in English letters", color = Color.White, fontSize = 14.sp)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ScriptLanguage.entries.forEach { l ->
+                FilterChip(
+                    selected = s.defaultLanguage == l.code,
+                    onClick = { onChange(s.copy(defaultLanguage = l.code)) },
+                    label = { Text(l.label) },
+                )
             }
         }
         Text("Highlight", color = Color.White, fontSize = 14.sp)
@@ -951,16 +986,23 @@ private fun SettingRow(label: String, content: @Composable () -> Unit) {
     }
 }
 
-private fun statusText(mode: Mode, running: Boolean, status: SpeechFollower.Status, laptopMic: Boolean): String = when {
+private fun statusText(
+    mode: Mode,
+    running: Boolean,
+    status: SpeechFollower.Status,
+    laptopMic: Boolean,
+    language: ScriptLanguage,
+): String = when {
     mode == Mode.STEADY -> if (running) "Steady scroll" else "Steady · paused"
-    laptopMic -> if (running) "💻 Laptop mic" else "💻 Laptop mic ready · tap play"
-    status == SpeechFollower.Status.ERROR_LANGUAGE -> "Telugu speech recognition not available"
+    laptopMic -> if (running) "💻 Laptop mic · ${language.label}" else "💻 Laptop mic ready · ${language.label} · tap play"
+    status == SpeechFollower.Status.ERROR_LANGUAGE ->
+        "${language.label} speech recognition isn't available on this phone (Settings → Google → voice languages)"
     status == SpeechFollower.Status.ERROR_NETWORK -> "Network issue, retrying…"
     status == SpeechFollower.Status.ERROR_PERMISSION -> "Allow microphone access"
     status == SpeechFollower.Status.ERROR_NO_RECOGNIZER -> "Speech recognizer missing — install the Google app"
-    !running -> "Tap ▶ and start speaking"
-    status == SpeechFollower.Status.HEARING -> "Hearing you"
-    else -> "Listening"
+    !running -> "${language.label} · tap ▶ and start speaking"
+    status == SpeechFollower.Status.HEARING -> "Hearing you · ${language.label}"
+    else -> "Listening · ${language.label}"
 }
 
 /** Shared between the speech callbacks and the frame loop (plain fields: both run on the main thread). */
