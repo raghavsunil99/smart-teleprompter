@@ -149,4 +149,29 @@ class SmoothnessTest {
         f.jumpTo(40f)
         assertEquals(40f, f.y, 0f)
     }
+
+    @Test
+    fun keepsMovingThroughSpeechThatDoesNotMatch() {
+        val f = CruiseFollower(maxLeadPx = 150f)
+        var now = 1_000_000_000L
+        for (i in 1..12) { now += 400_000_000L; f.confirm(i * 30f, now); repeat(24) { f.step(now, 1f / 60, true) } }
+        val atLastMatch = f.y
+        // 2 s of speech the matcher can't place: still scrolling, at about the same pace.
+        repeat(120) { i ->
+            now += 16_666_667L
+            if (i % 30 == 0) f.speechHeard(now)
+            f.step(now, 1f / 60, true)
+        }
+        assertTrue("moved only ${f.y - atLastMatch}", f.y - atLastMatch > 60f)
+        assertTrue("still moving at ${f.velocity}", f.velocity > 20f)
+    }
+
+    @Test
+    fun stopsWhenTheSpeechStops() {
+        val f = CruiseFollower(maxLeadPx = 150f)
+        var now = 1_000_000_000L
+        for (i in 1..12) { now += 400_000_000L; f.confirm(i * 30f, now); repeat(24) { f.step(now, 1f / 60, true) } }
+        repeat(300) { now += 16_666_667L; f.step(now, 1f / 60, true) }
+        assertTrue("still moving at ${f.velocity}", kotlin.math.abs(f.velocity) < 2f)
+    }
 }

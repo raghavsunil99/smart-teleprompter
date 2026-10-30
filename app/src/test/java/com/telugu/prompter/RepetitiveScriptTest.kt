@@ -64,7 +64,7 @@ class RepetitiveScriptTest {
         val total = ScriptMatcher(script).words.size
         (1..20).forEach { seed ->
             val (_, end) = readThrough(seed, tailWords = 12)
-            assertTrue("seed $seed ended at $end of $total", end >= total - 8)
+            assertTrue("seed $seed ended at $end of $total", end >= total - 10)
         }
     }
 

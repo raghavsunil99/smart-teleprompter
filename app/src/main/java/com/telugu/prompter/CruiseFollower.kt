@@ -30,6 +30,7 @@ class CruiseFollower(
     private var targetY = 0f
     private var lastConfirmNanos = 0L
     private var rewinding = false
+    private var lastSpeechNanos = 0L
 
     // Recent (time, y) confirmations, for the pace estimate.
     private val times = ArrayDeque<Long>()
@@ -44,6 +45,14 @@ class CruiseFollower(
         lastConfirmNanos = 0L
         times.clear(); ys.clear()
         pace = 0f
+    }
+
+    /**
+     * Speech was heard, whether or not it matched the script. Words the recognizer writes
+     * unexpectedly shouldn't look like a pause: while speech continues, scrolling continues.
+     */
+    fun speechHeard(nowNanos: Long) {
+        lastSpeechNanos = nowNanos
     }
 
     /** The recognizer placed the speaker at [px] (y of the next word to be said). */
@@ -83,10 +92,15 @@ class CruiseFollower(
             return y
         }
 
-        val talking = listening && since < PAUSE_SECONDS
-        // Where the speaker probably is now: the last heard word, plus their pace since then.
-        // After a pause the prediction freezes (rather than vanishing, which would jolt).
-        val lead = if (listening && lastConfirmNanos != 0L) min(pace * min(since, PAUSE_SECONDS), maxLeadPx) else 0f
+        // Speaking = a word matched recently, or the recognizer is still hearing speech.
+        val sinceSpeech = if (lastSpeechNanos == 0L) Float.MAX_VALUE else (nowNanos - lastSpeechNanos) / 1e9f
+        val talking = listening && min(since, sinceSpeech) < PAUSE_SECONDS
+        // Where the speaker probably is now: the last matched word, plus their pace since then.
+        // Unmatched speech may carry it further than plain prediction. After a pause the
+        // prediction freezes (rather than vanishing, which would jolt).
+        val leadCap = if (lastSpeechNanos > lastConfirmNanos) maxLeadPx * UNMATCHED_SPEECH_LEAD else maxLeadPx
+        val leadTime = if (talking) since else min(since, PAUSE_SECONDS)
+        val lead = if (listening && lastConfirmNanos != 0L) min(pace * leadTime, leadCap) else 0f
         val expected = targetY + lead
         val error = expected - y
 
@@ -105,7 +119,7 @@ class CruiseFollower(
         velocity += (wanted - velocity) * (1f - exp(-dtSeconds / ACCEL_SECONDS))
         var next = y + velocity * dtSeconds
         // Safety net only; normally the speed has already eased off well before this.
-        val hardCap = targetY + maxLeadPx * 1.5f
+        val hardCap = targetY + leadCap * 1.5f
         if (next > hardCap) {
             next = max(y, hardCap)
             velocity = min(velocity, (next - y) / dtSeconds)
@@ -117,6 +131,8 @@ class CruiseFollower(
     companion object {
         private const val PACE_WINDOW_NANOS = 4_000_000_000L
         private const val PAUSE_SECONDS = 1.2f
+        /** How much further than usual the scroll may run through speech that doesn't match. */
+        private const val UNMATCHED_SPEECH_LEAD = 1.8f
         private const val CORRECTION_SECONDS = 2.0f
         private const val AHEAD_CORRECTION_SECONDS = 0.6f
         private const val CATCH_UP_SECONDS = 0.7f

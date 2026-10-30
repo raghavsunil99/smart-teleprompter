@@ -13,7 +13,7 @@ You need:
 
 1. INSTALL ON ANDROID
 ---------------------
-1. Copy  Smart-Teleprompter-by-Raghav-1.6.apk  to the phone (WhatsApp it to yourself,
+1. Copy  Smart-Teleprompter-by-Raghav-1.7.apk  to the phone (WhatsApp it to yourself,
    Google Drive, or a USB cable) and tap it.
 2. Android asks whether to allow installing apps from that source (Chrome, Files, WhatsApp…).
    Tap  Settings  → turn on  "Allow from this source"  → go back → Install.

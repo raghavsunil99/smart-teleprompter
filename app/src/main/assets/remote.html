@@ -368,13 +368,18 @@
       let last = 0;
       for (const m of line.matchAll(WORD)) {
         if (m.index > last) p.appendChild(document.createTextNode(line.slice(last, m.index)));
-        const span = document.createElement('span');
-        span.className = 'word';
-        span.textContent = m[0];
-        span.dataset.o = String(lineStart + m.index);
-        offsetToIndex.set(lineStart + m.index, wordEls.length);
-        wordEls.push(span);
-        p.appendChild(span);
+        // Joined words (useState) are followed as two words, as on the phone.
+        let at = m.index;
+        for (const part of m[0].split(/(?<=\p{Ll})(?=\p{Lu})/u)) {
+          const span = document.createElement('span');
+          span.className = 'word';
+          span.textContent = part;
+          span.dataset.o = String(lineStart + at);
+          offsetToIndex.set(lineStart + at, wordEls.length);
+          wordEls.push(span);
+          p.appendChild(span);
+          at += part.length;
+        }
         last = m.index + m[0].length;
       }
       if (last < line.length) p.appendChild(document.createTextNode(line.slice(last)));

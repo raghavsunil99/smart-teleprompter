@@ -122,6 +122,76 @@ object Phonetic {
     fun normalize(word: String, language: ScriptLanguage = ScriptLanguage.TELUGU): String =
         key(transliterate(word), language)
 
+    /** Words whose English sound the rules in [englishSound] can't work out. */
+    private val ENGLISH_EXCEPTIONS = mapOf(
+        "cache" to "kyash", "use" to "yuj", "uses" to "yujes", "used" to "yujd", "apis" to "epiais",
+        "api" to "epiai", "heavy" to "hevi", "execute" to "egjikyut", "the" to "da", "one" to "van", "two" to "tu",
+    )
+
+    private val TION = Regex("[ts]ion")
+    private val OW_INSIDE = Regex("ow(?=[a-z])")
+    private val FINAL_Y = Regex("(?<=[^aeiou])y$")
+    private val FINAL_GE = Regex("ge$")
+    private val MAGIC_E = Regex("([aiouy])([bcdfgklmnprstvz])es?$")
+
+    /** A Latin spelling of how an English word sounds: time → taim, save → sev, station → steshan. */
+    fun englishSound(word: String): String {
+        val w = word.lowercase()
+        ENGLISH_EXCEPTIONS[w]?.let { return it }
+        if (w.length == 2 && w.endsWith("e")) return w.dropLast(1) + "ii" // re, be, he
+        var s = w.replace(TION, "shan").replace("ture", "char").replace("dge", "j").replace("ck", "k")
+        s = s.replace("ea", "ii").replace(OW_INSIDE, "au").replace("ou", "au")
+        s = s.replace(FINAL_Y, "i").replace(FINAL_GE, "j")
+        return s.replace(MAGIC_E) {
+            val vowel = when (it.groupValues[1]) { "a" -> "e"; "i", "y" -> "ai"; "u" -> "yu"; else -> "o" }
+            vowel + it.groupValues[2]
+        }
+    }
+
+    private val LETTER_NAMES = mapOf(
+        'a' to "e", 'b' to "bi", 'c' to "si", 'd' to "di", 'e' to "i", 'f' to "ef", 'g' to "ji", 'h' to "ech",
+        'i' to "ai", 'j' to "je", 'k' to "ke", 'l' to "el", 'm' to "em", 'n' to "en", 'o' to "o", 'p' to "pi",
+        'q' to "kyu", 'r' to "ar", 's' to "es", 't' to "ti", 'u' to "yu", 'v' to "vi", 'w' to "dablyu",
+        'x' to "eks", 'y' to "vai", 'z' to "jed",
+    )
+
+    /** Number words said for a digit string: English first, then the script's language. */
+    private val NUMBER_WORDS = mapOf(
+        "0" to listOf("ziro", "sunna", "poojyam", "pujiyam"),
+        "1" to listOf("van", "okati", "onnu", "onru"),
+        "2" to listOf("tu", "rendu", "randu"),
+        "3" to listOf("thri", "moodu", "moonnu", "munru"),
+        "4" to listOf("for", "nalugu", "naalu", "nangu"),
+        "5" to listOf("faiv", "aidu", "anchu", "aintu"),
+        "6" to listOf("siks", "aaru"),
+        "7" to listOf("seven", "edu", "ezhu"),
+        "8" to listOf("eit", "enimidi", "ettu"),
+        "9" to listOf("nain", "tommidi", "ompathu", "onpathu"),
+        "10" to listOf("ten", "padi", "pathu"),
+        "100" to listOf("handred", "vanda", "nooru"),
+    )
+
+    private fun isAsciiWord(word: String) = word.isNotEmpty() && word.all { it in 'a'..'z' || it in 'A'..'Z' || it in '0'..'9' }
+
+    /**
+     * Every sound key a word can match on. Recognizers often write English words in the speaker's
+     * own letters, so an English word also matches on how it sounds (time = టైమ్), an acronym on
+     * its letter names (IDs = ఐడీస్), and a number on its spoken forms (5 = ఫైవ్).
+     */
+    fun soundKeys(word: String, language: ScriptLanguage = ScriptLanguage.TELUGU): List<String> {
+        val primary = normalize(word, language)
+        if (!isAsciiWord(word)) return listOf(primary)
+        val spoken = NUMBER_WORDS[word]
+        if (spoken != null) return (listOf(primary) + spoken.map { key(it, language) }).distinct()
+        val keys = mutableListOf(primary, key(englishSound(word), language))
+        val letters = word.removeSuffix("s")
+        if (letters.length in 2..5 && letters.all { it.isUpperCase() }) {
+            val named = letters.lowercase().map { LETTER_NAMES[it].orEmpty() }.joinToString("")
+            keys += key(named + if (word.length > letters.length) "s" else "", language)
+        }
+        return keys.distinct()
+    }
+
     /** Consonants only, for English words whose spelling doesn't follow sound (subscribe ≈ sabskraib). */
     fun skeleton(key: String): String = key.replace(VOWEL_CHARS, "")
 }

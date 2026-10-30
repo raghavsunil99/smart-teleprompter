@@ -169,11 +169,14 @@ fun PrompterScreen(
 
     /** Words heard by either mic (phone or laptop) move the script the same way. */
     fun onHeardText(h: String, fromLaptop: Boolean) {
+        val isNew = h != lastHeard
         lastHeard = h
         heardOnLaptop = fromLaptop
         if (matcher.onHeard(h)) {
             position = matcher.position
             sync.heardAt = System.nanoTime()
+        } else if (isNew) {
+            sync.speechAt = System.nanoTime() // talking, even if these words don't match
         }
     }
 
@@ -533,6 +536,10 @@ fun PrompterScreen(
             } else if (p != sync.lastPos) {
                 cruise.confirm(wordY[p], if (sync.heardAt != 0L) sync.heardAt else System.nanoTime())
                 sync.lastPos = p
+            }
+            if (sync.speechAt != 0L) {
+                cruise.speechHeard(sync.speechAt)
+                sync.speechAt = 0L
             }
             cruise.maxLeadPx = lineHeightPx * 1.2f
             val y = cruise.step(System.nanoTime(), dt, isListening)
@@ -1010,4 +1017,5 @@ private class FollowSync {
     var jump = true
     var lastPos = -1
     var heardAt = 0L
+    var speechAt = 0L // set whenever the recognizer hears anything, matched or not
 }

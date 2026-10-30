@@ -3,7 +3,17 @@ package com.telugu.prompter
 import java.text.Normalizer
 
 /** One word of the script, with where it sits in the original text. */
-data class ScriptWord(val text: String, val norm: String, val start: Int, val end: Int)
+data class ScriptWord(
+    val text: String,
+    val norm: String,
+    val start: Int,
+    val end: Int,
+    /** Every sound this word can match on (see [Phonetic.soundKeys]); the first is [norm]. */
+    val keys: List<String> = listOf(norm),
+) {
+    /** Written in plain English letters, so spelling alone can compare it with another such word. */
+    val isLatin: Boolean get() = text.all { it in 'a'..'z' || it in 'A'..'Z' }
+}
 
 /** A `# Heading` line in the script. [wordIndex] is the first spoken word after it. */
 data class Section(val title: String, val wordIndex: Int, val charStart: Int)
@@ -86,7 +96,7 @@ class ScriptMatcher(text: String, val language: ScriptLanguage = ScriptLanguage.
      * Best local alignment of [tail] against words[winStart, winEnd) that ends on one of the
      * last two heard words (the very last one may be a half-recognized partial).
      */
-    private fun align(tail: List<String>, winStart: Int, winEnd: Int, firstNewI: Int = 0): Alignment? {
+    private fun align(tail: List<ScriptWord>, winStart: Int, winEnd: Int, firstNewI: Int = 0): Alignment? {
         if (winStart >= winEnd) return null
         val m = tail.size
         val n = winEnd - winStart
@@ -97,7 +107,7 @@ class ScriptMatcher(text: String, val language: ScriptLanguage = ScriptLanguage.
 
         for (i in 1..m) {
             for (j in 1..n) {
-                val sim = wordSimilarity(tail[i - 1], words[winStart + j - 1].norm)
+                val sim = matchSimilarity(tail[i - 1], words[winStart + j - 1])
                 val isMatch = sim >= MATCH_THRESHOLD
                 val matchScore = if (isMatch) sim * 2 else MISMATCH
                 val diag = h[i - 1][j - 1] + matchScore
@@ -134,12 +144,13 @@ class ScriptMatcher(text: String, val language: ScriptLanguage = ScriptLanguage.
      */
     fun onHeard(hypothesis: String): Boolean {
         if (words.isEmpty()) return false
-        val heard = tokenize(hypothesis, language).map { it.norm }.filter { it.isNotEmpty() }
+        val heardWords = tokenize(hypothesis, language).filter { it.norm.isNotEmpty() }
+        val heard = heardWords.map { it.norm }
         if (heard.isEmpty()) return false
         val firstNew = firstNewWord(heard)
         previousHeard = heard
         if (firstNew >= heard.size) return false // nothing new since last time
-        val tail = heard.takeLast(TAIL_WORDS)
+        val tail = heardWords.takeLast(TAIL_WORDS)
         val m = tail.size
         val firstNewI = (firstNew - (heard.size - m)).coerceAtLeast(0) // in tail coordinates
 
@@ -176,7 +187,7 @@ class ScriptMatcher(text: String, val language: ScriptLanguage = ScriptLanguage.
                 else -> 4
             }
             // A single word is enough only if it is the very next one or two and long/unambiguous.
-            val singleOk = fwd.matches == 1 && jump <= 2 && tail[fwd.endI - 1].length >= 3
+            val singleOk = fwd.matches == 1 && jump <= 2 && tail[fwd.endI - 1].norm.length >= 3
             if (fwd.matches < needed && !singleOk) continue
             // Real matches are mostly contiguous; a few common words spread across a long stretch
             // (e.g. a filler "okay" fuzzily matching "okkate" 9 words ahead) are not.
@@ -229,9 +240,19 @@ class ScriptMatcher(text: String, val language: ScriptLanguage = ScriptLanguage.
 
         private val WORD_REGEX = Regex("[\\p{L}\\p{M}\\p{N}\\u200C\\u200D]+")
 
+        /** Splits joined words: useState is said as two words, so it's matched as two. */
+        private val CAMEL_CASE = Regex("(?<=\\p{Ll})(?=\\p{Lu})")
+
         fun tokenize(text: String, language: ScriptLanguage = ScriptLanguage.DEFAULT): List<ScriptWord> =
-            WORD_REGEX.findAll(text).map {
-                ScriptWord(it.value, normalize(it.value, language), it.range.first, it.range.last + 1)
+            WORD_REGEX.findAll(text).flatMap { match ->
+                var start = match.range.first
+                match.value.split(CAMEL_CASE).map { part ->
+                    val word = ScriptWord(
+                        part, normalize(part, language), start, start + part.length, soundKeys(part, language),
+                    )
+                    start += part.length
+                    word
+                }
             }.toList()
 
         /** Native letters and English-letter typing both become the same Latin sound key (see [Phonetic]). */
@@ -242,6 +263,27 @@ class ScriptMatcher(text: String, val language: ScriptLanguage = ScriptLanguage.
                     .replace("\u200D", ""),
                 language,
             )
+
+        private fun soundKeys(word: String, language: ScriptLanguage): List<String> =
+            Phonetic.soundKeys(
+                Normalizer.normalize(word, Normalizer.Form.NFC).replace("\u200C", "").replace("\u200D", ""),
+                language,
+            )
+
+        /**
+         * How well a heard word fits a script word. Two English-letter words compare by spelling;
+         * the extra sounds are for bridging different letters, and would only add false matches.
+         */
+        fun matchSimilarity(heard: ScriptWord, script: ScriptWord): Double =
+            if (heard.isLatin && script.isLatin) wordSimilarity(heard.norm, script.norm)
+            else bestSimilarity(heard.keys, script.keys)
+
+        /** Best similarity between any sound of a heard word and any sound of a script word. */
+        fun bestSimilarity(heard: List<String>, script: List<String>): Double {
+            var best = 0.0
+            for (h in heard) for (s in script) best = maxOf(best, wordSimilarity(h, s))
+            return best
+        }
 
         /** Similarity of two sound keys, falling back to their consonant skeletons. */
         fun wordSimilarity(a: String, b: String): Double {

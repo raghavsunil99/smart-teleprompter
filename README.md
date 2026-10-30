@@ -28,11 +28,11 @@
   <img src="docs/images/reading.png" alt="Reading a script: the current word glides along in the red reading band, words already read fade to grey" width="100%">
 </p>
 
-## 🆕 What's new in 1.6
+## 🆕 What's new in 1.7
 
-- **Four languages**: Telugu, Malayalam, Tamil and English, each recognised in its own language.
-- **Language per script**: worked out from the letters, or chosen in the editor, in Settings or from the laptop.
-- **Malayalam and Tamil scripts** follow you whether they're written in their own letters or typed in English letters.
+- **English words inside Telugu, Malayalam or Tamil scripts** now follow smoothly, even when the recognizer writes them in its own letters: *time*, *save*, *cache*, and joined words like *useState*.
+- **Numbers** match how they're said: *5* = five = ఐదు.
+- **Scrolling keeps going while you're talking**, even through a word it can't match, and only slows when you actually stop.
 
 Full history in the [changelog](CHANGELOG.md).
 
@@ -40,7 +40,7 @@ Full history in the [changelog](CHANGELOG.md).
 
 | Device | File | Notes |
 |---|---|---|
-| 🤖 **Android** 8+ phone or tablet | [Smart-Teleprompter-by-Raghav-1.6.apk](https://github.com/raghavsunil99/smart-teleprompter/releases/latest) | Allow installing from your browser or Files app, then **Install anyway** |
+| 🤖 **Android** 8+ phone or tablet | [Smart-Teleprompter-by-Raghav-1.7.apk](https://github.com/raghavsunil99/smart-teleprompter/releases/latest) | Allow installing from your browser or Files app, then **Install anyway** |
 | 💻 **Laptop remote** (optional) | Nothing to install | Open the address the app shows in **Chrome** on a laptop on the same Wi-Fi |
 
 Step-by-step instructions: [HOW TO INSTALL SMART TELEPROMPTER.txt](docs/HOW%20TO%20INSTALL%20SMART%20TELEPROMPTER.txt). Installing a new version over an old one keeps your scripts.
@@ -170,8 +170,8 @@ Needs JDK 17 and the Android SDK (platform 35).
 ## How it works
 
 - **Listening**: Android's speech recognizer in the script's language (`te-IN`, `ml-IN`, `ta-IN` or `en-IN`), with partial results, kept running across pauses (one segmented session on Android 13+). The laptop remote uses Chrome's Web Speech API in the same language and sends what it hears over a WebSocket.
-- **Matching** (`ScriptMatcher`): the last few heard words are aligned to the script near the current position. Telugu, Malayalam and Tamil letters, and English-letter typing, are all turned into the same Latin sound key (`Phonetic`); for Tamil, sounds its script writes with one letter (k/g, t/d, p/b) count as the same. The further ahead a match is, the more (and the more contiguous) matching words it needs, and only newly heard words can move the position, so repeated phrases in other sections don't pull it away. A restarted sentence is a retake.
-- **Scrolling** (`CruiseFollower`): scrolls at the speaker's measured pace in pixels per second and corrects drift over about two seconds, rather than chasing each burst of recognized words. Drawn with sub-pixel offsets.
+- **Matching** (`ScriptMatcher`): the last few heard words are aligned to the script near the current position. Telugu, Malayalam and Tamil letters, and English-letter typing, are all turned into the same Latin sound key (`Phonetic`); for Tamil, sounds its script writes with one letter (k/g, t/d, p/b) count as the same. English words also match on how they sound (`Phonetic.soundKeys`), and joined words like `useState` are followed as two words. The further ahead a match is, the more (and the more contiguous) matching words it needs, and only newly heard words can move the position, so repeated phrases in other sections don't pull it away. A restarted sentence is a retake.
+- **Scrolling** (`CruiseFollower`): scrolls at the speaker's measured pace in pixels per second and corrects drift over about two seconds, rather than chasing each burst of recognized words. While speech is heard it keeps going, even through words that don't match. Drawn with sub-pixel offsets.
 - **Remote** (`RemoteServer`, `RemoteHub`): a small web server on the phone, over http and https, serving the remote page plus a WebSocket for commands, heard words and live status.
 
 ## Layout

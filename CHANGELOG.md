@@ -2,6 +2,12 @@
 
 Downloads for each version are on the [releases page](https://github.com/raghavsunil99/smart-teleprompter/releases).
 
+## 1.7
+- English words inside Telugu, Malayalam or Tamil scripts follow smoothly, even when the recognizer writes them in its own letters. In a simulated reading of a real mixed script, words that failed to move the position went from 37 to 0.
+- Joined words like `useState` are followed as two words, as they're said.
+- Numbers match how they're said: 5 = five = ఐదు.
+- Scrolling keeps going while you're talking, even through a word it can't match.
+
 ## 1.6
 - **Telugu, Malayalam, Tamil and English.** Each script listens in its own language: worked out from its letters, or chosen in the editor, in Settings or from the laptop.
 - Malayalam and Tamil scripts follow you whether they're written in their own letters or typed in English letters.
