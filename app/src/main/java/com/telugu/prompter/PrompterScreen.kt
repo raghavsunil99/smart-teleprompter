@@ -172,11 +172,18 @@ fun PrompterScreen(
         val isNew = h != lastHeard
         lastHeard = h
         heardOnLaptop = fromLaptop
+        // Words the recognizer wrote since last time. A shorter text is a new segment, so all of it is new.
+        val n = h.trim().split(Regex("\\s+")).size
+        val grown = if (n > sync.lastWordCount) n - sync.lastWordCount else if (n < sync.lastWordCount) n else 0
+        sync.lastWordCount = n
         if (matcher.onHeard(h)) {
             position = matcher.position
             sync.heardAt = System.nanoTime()
+            sync.unmatchedWords = 0 // a match is the anchor; drop the word-count guess
         } else if (isNew) {
             sync.speechAt = System.nanoTime() // talking, even if these words don't match
+            // Words we couldn't place still tell us the speaker has moved on: count them.
+            sync.unmatchedWords = (sync.unmatchedWords + grown).coerceAtMost(MAX_UNMATCHED_WORDS)
         }
     }
 
@@ -542,6 +549,8 @@ fun PrompterScreen(
                 sync.speechAt = 0L
             }
             cruise.maxLeadPx = lineHeightPx * 1.2f
+            val wordPx = (wordY.last() - wordY.first()) / wordY.size
+            cruise.unmatchedPx = sync.unmatchedWords * wordPx
             val y = cruise.step(System.nanoTime(), dt, isListening)
             // Only drive the scroll when it moves, so a paused prompter can be finger-scrolled.
             if (y == lastY) continue
@@ -1013,9 +1022,13 @@ private fun statusText(
 }
 
 /** Shared between the speech callbacks and the frame loop (plain fields: both run on the main thread). */
+private const val MAX_UNMATCHED_WORDS = 12
+
 private class FollowSync {
     var jump = true
     var lastPos = -1
     var heardAt = 0L
     var speechAt = 0L // set whenever the recognizer hears anything, matched or not
+    var lastWordCount = 0 // words in the latest recognizer text, to see how many are new
+    var unmatchedWords = 0 // new words since the last match that couldn't be placed in the script
 }

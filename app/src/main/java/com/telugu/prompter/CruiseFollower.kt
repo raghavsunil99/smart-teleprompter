@@ -27,6 +27,14 @@ class CruiseFollower(
     var velocity: Float = 0f
         private set
 
+    /**
+     * Pixels the speaker has probably read beyond the last matched word, estimated from how many
+     * words the recognizer wrote that didn't match the script. Set every frame by the caller; it
+     * drops back to 0 as soon as a word matches again (the match is then the anchor).
+     */
+    var unmatchedPx: Float = 0f
+        set(value) { field = value.coerceIn(0f, maxLeadPx * UNMATCHED_MAX_LINES) }
+
     private var targetY = 0f
     private var lastConfirmNanos = 0L
     private var rewinding = false
@@ -101,7 +109,8 @@ class CruiseFollower(
         val leadCap = if (lastSpeechNanos > lastConfirmNanos) maxLeadPx * UNMATCHED_SPEECH_LEAD else maxLeadPx
         val leadTime = if (talking) since else min(since, PAUSE_SECONDS)
         val lead = if (listening && lastConfirmNanos != 0L) min(pace * leadTime, leadCap) else 0f
-        val expected = targetY + lead
+        val extra = if (listening && lastConfirmNanos != 0L) unmatchedPx else 0f
+        val expected = targetY + lead + extra
         val error = expected - y
 
         val wanted = when {
@@ -119,7 +128,7 @@ class CruiseFollower(
         velocity += (wanted - velocity) * (1f - exp(-dtSeconds / ACCEL_SECONDS))
         var next = y + velocity * dtSeconds
         // Safety net only; normally the speed has already eased off well before this.
-        val hardCap = targetY + leadCap * 1.5f
+        val hardCap = targetY + leadCap * 1.5f + extra
         if (next > hardCap) {
             next = max(y, hardCap)
             velocity = min(velocity, (next - y) / dtSeconds)
@@ -133,6 +142,8 @@ class CruiseFollower(
         private const val PAUSE_SECONDS = 1.2f
         /** How much further than usual the scroll may run through speech that doesn't match. */
         private const val UNMATCHED_SPEECH_LEAD = 1.8f
+        /** Most the word-count guess may add beyond the normal lead, in lead-lengths (~lines). */
+        private const val UNMATCHED_MAX_LINES = 2.5f
         private const val CORRECTION_SECONDS = 2.0f
         private const val AHEAD_CORRECTION_SECONDS = 0.6f
         private const val CATCH_UP_SECONDS = 0.7f

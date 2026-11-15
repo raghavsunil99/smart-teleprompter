@@ -2,6 +2,9 @@
 
 Downloads for each version are on the [releases page](https://github.com/raghavsunil99/smart-teleprompter/releases).
 
+## 1.8
+- Scrolling no longer stalls when the recognizer writes words it can't match to your script. It counts the words you're saying and keeps moving, up to a few lines, and snaps back onto the script as soon as a word matches again.
+
 ## 1.7
 - English words inside Telugu, Malayalam or Tamil scripts follow smoothly, even when the recognizer writes them in its own letters. In a simulated reading of a real mixed script, words that failed to move the position went from 37 to 0.
 - Joined words like `useState` are followed as two words, as they're said.
