@@ -44,12 +44,16 @@ class UnmatchedWordsTest {
 
     @Test
     fun noGuessWhenNotListening() {
-        val f = CruiseFollower(maxLeadPx = 150f)
-        f.jumpTo(100f)
-        f.confirm(160f, sec)
-        f.unmatchedPx = 300f
-        var now = sec
-        repeat(120) { now += 16_000_000L; f.step(now, 0.016f, false) }
-        assertEquals(160f, f.y, 2f)
+        fun settled(unmatchedPx: Float): Float {
+            val f = CruiseFollower(maxLeadPx = 150f)
+            f.jumpTo(100f)
+            f.confirm(160f, sec)
+            f.unmatchedPx = unmatchedPx
+            var now = sec
+            repeat(120) { now += 16_000_000L; f.step(now, 0.016f, false) }
+            return f.y
+        }
+        // With the mic off the guess must change nothing.
+        assertEquals(settled(0f), settled(300f), 0.01f)
     }
 }
