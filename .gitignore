@@ -9,3 +9,4 @@ SmartTelePrompter.apk
 releases/
 screenshots/
 *.apk
+.kotlin/
