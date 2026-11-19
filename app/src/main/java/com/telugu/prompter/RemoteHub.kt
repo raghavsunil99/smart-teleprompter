@@ -42,6 +42,8 @@ sealed interface RemoteCommand {
     data class OpenScript(val id: String) : RemoteCommand
     /** Words the laptop's mic heard (current utterance). */
     data class Heard(val text: String) : RemoteCommand
+    /** The laptop changed a setting (validated; see [withSetting]). Applied by the activity. */
+    data class SetSetting(val key: String, val value: String) : RemoteCommand
     /** A script was saved from the laptop without opening it; refresh the list. */
     data object ScriptsChanged : RemoteCommand
 }
@@ -63,6 +65,9 @@ class RemoteHub(
 
     /** JSON published by the screen currently showing; read by the server thread. */
     @Volatile var status: String = Json.obj("screen" to "list")
+
+    /** The prompter settings as JSON (see [toRemoteJson]); sent with every status so any screen can show them. */
+    @Volatile var settingsJson: String = "{}"
 
     var isOn by mutableStateOf(false); private set
 
@@ -115,7 +120,7 @@ class RemoteHub(
         // The page uses httpsPort to point plain-http visitors at the mic-capable address.
         override fun statusJson(): String {
             val s = status
-            val extra = "\"httpsPort\":$httpsPort"
+            val extra = "\"httpsPort\":$httpsPort,\"settings\":$settingsJson"
             return if (s.length <= 2) "{$extra}" else s.dropLast(1) + ",$extra}"
         }
 
@@ -123,6 +128,12 @@ class RemoteHub(
             if (cmd == "openScript") {
                 val id = value ?: return false
                 return commands.tryEmit(RemoteCommand.OpenScript(id))
+            }
+            if (cmd == "set") {
+                // value = "key=value", e.g. "eyeLine=0.5"
+                val (key, raw) = (value ?: return false).split('=', limit = 2).let { it[0] to it.getOrNull(1) }
+                if (raw == null || PrompterSettings().withSetting(key, raw) == null) return false
+                return commands.tryEmit(RemoteCommand.SetSetting(key, raw))
             }
             if (cmd !in PROMPTER_COMMANDS) return false
             return commands.tryEmit(RemoteCommand.Prompter(cmd, value))

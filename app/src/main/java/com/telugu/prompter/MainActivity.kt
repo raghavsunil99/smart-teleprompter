@@ -41,9 +41,15 @@ class MainActivity : ComponentActivity() {
 
                 DisposableEffect(remote) { onDispose { remote.stop() } }
 
+                // Keep the laptop page's settings in step with the phone's, on every screen.
+                LaunchedEffect(settings) { remote.settingsJson = settings.toRemoteJson() }
+
                 // A script sent from the laptop opens straight away.
                 LaunchedEffect(remote) {
                     remote.commands.collect { c ->
+                        if (c is RemoteCommand.SetSetting) {
+                            settings.withSetting(c.key, c.value)?.let { settings = it; store.saveSettings(it) }
+                        }
                         if (c is RemoteCommand.ScriptsChanged) scripts = store.loadScripts()
                         if (c is RemoteCommand.OpenScript) {
                             scripts = store.loadScripts()

@@ -28,7 +28,11 @@
   <img src="docs/images/reading.png" alt="Reading a script: the current word glides along in the red reading band, words already read fade to grey" width="100%">
 </p>
 
-## 🆕 What's new in 1.9
+## 🆕 What's new in 2.0
+
+- **Change the phone's settings from your laptop.** The Chrome remote page now has a Settings panel: reading band position (with a one-click *Middle*), text size, Steady speed, highlight, orientation, brightness, countdown, default language and the switches. Changes apply on the phone straight away.
+
+### Earlier: 1.9
 
 - **Reading band in the middle.** The red band now sits in the middle of the screen by default instead of 30% from the top. You can still move it in Settings.
 
@@ -49,7 +53,7 @@ Full history in the [changelog](CHANGELOG.md).
 
 | Device | File | Notes |
 |---|---|---|
-| 🤖 **Android** 8+ phone or tablet | [Smart-Teleprompter-by-Raghav-1.9.apk](https://github.com/raghavsunil99/smart-teleprompter/releases/latest) | Allow installing from your browser or Files app, then **Install anyway** |
+| 🤖 **Android** 8+ phone or tablet | [Smart-Teleprompter-by-Raghav-2.0.apk](https://github.com/raghavsunil99/smart-teleprompter/releases/latest) | Allow installing from your browser or Files app, then **Install anyway** |
 | 💻 **Laptop remote** (optional) | Nothing to install | Open the address the app shows in **Chrome** on a laptop on the same Wi-Fi |
 
 Step-by-step instructions: [HOW TO INSTALL SMART TELEPROMPTER.txt](docs/HOW%20TO%20INSTALL%20SMART%20TELEPROMPTER.txt). Installing a new version over an old one keeps your scripts.
@@ -131,6 +135,7 @@ Turn on **Remote** in the app and open the address it shows in Chrome on your la
 - **Laptop mic**: if the phone is a couple of metres away in a rig, let the laptop in front of you do the listening. The phone follows it, and switches back to its own mic if the laptop stops.
 - **Control everything**: play, mode, language, lines, sections, text size, speed and flip, with keyboard shortcuts.
 - **Write scripts on the laptop** and send them to the phone.
+- **Phone settings from the laptop**: band position, text size, speed, highlight, orientation, brightness, countdown and more, in the Settings panel.
 
 <p align="center">
   <img src="docs/images/remote.png" alt="The laptop remote: the live Malayalam script with the current word highlighted, controls with the Language switch, and the script list" width="100%">

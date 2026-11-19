@@ -2,6 +2,10 @@
 
 Downloads for each version are on the [releases page](https://github.com/raghavsunil99/smart-teleprompter/releases).
 
+## 2.0
+- **Control the phone's settings from the laptop.** The Chrome remote page has a new Settings panel: reading band position (with a one-click Middle), text size, Steady speed, highlight style, orientation, brightness, countdown, default language, and the beeps / volume-button / continuous-listening switches. Changes apply on the phone at once and are saved there.
+- The settings panel works on the script list too, not only while the prompter is open.
+
 ## 1.9
 - The red reading band now sits in the middle of the screen by default (it was 30% from the top). Still adjustable in Settings. If you hadn't changed it, it moves to the middle automatically.
 

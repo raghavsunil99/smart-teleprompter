@@ -70,6 +70,15 @@
   kbd { font: 12px ui-monospace, monospace; background: var(--panel2); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; color: var(--muted); }
   .keys { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; font-size: 13px; color: var(--muted); margin-top: 8px; }
 
+  /* Settings */
+  .setRow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .setRow .label { width: 110px; }
+  .setRow input[type=range] { flex: 1; min-width: 120px; width: auto; padding: 0; accent-color: var(--accent); }
+  .setRow .value { min-width: 48px; text-align: right; }
+  .seg button { white-space: nowrap; }
+  #settingsNote { font-size: 12px; color: var(--muted); }
+  #settingsNote:empty { display: none; }
+
   /* Scripts */
   .scriptRow { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 10px; }
   .scriptRow:hover { background: var(--panel2); }
@@ -180,6 +189,82 @@
             <button id="flip" data-cmd="flip">⇅ Upside-down</button>
             <button id="mirror" data-cmd="mirror">⇆ Mirror</button>
           </div>
+        </div>
+
+        <div class="section" id="settingsSection">
+          <h2>Settings</h2>
+          <div class="setRow">
+            <span class="label">Reading band</span>
+            <input type="range" id="set-eyeLine" data-set="eyeLine" data-scale="100" min="10" max="60" step="1" aria-label="Reading band position">
+            <span class="value" id="val-eyeLine"></span>
+            <button data-set="eyeLine" data-val="0.5" title="Put the red band in the middle">Middle</button>
+          </div>
+          <div class="setRow">
+            <span class="label">Text size</span>
+            <input type="range" id="set-fontSize" data-set="fontSize" data-scale="1" min="18" max="96" step="2" aria-label="Text size">
+            <span class="value" id="val-fontSize"></span>
+          </div>
+          <div class="setRow">
+            <span class="label">Steady speed</span>
+            <input type="range" id="set-speed" data-set="speed" data-scale="1" min="10" max="150" step="5" aria-label="Steady scroll speed">
+            <span class="value" id="val-speed"></span>
+          </div>
+          <div class="setRow">
+            <span class="label">Highlight</span>
+            <span class="seg" role="group" aria-label="Highlight">
+              <button data-set="highlight" data-val="word">Gliding word</button>
+              <button data-set="highlight" data-val="line">Whole line</button>
+              <button data-set="highlight" data-val="off">Off</button>
+            </span>
+          </div>
+          <div class="setRow">
+            <span class="label">Orientation</span>
+            <span class="seg" role="group" aria-label="Orientation">
+              <button data-set="orientation" data-val="auto">Auto</button>
+              <button data-set="orientation" data-val="landscape">Landscape</button>
+              <button data-set="orientation" data-val="portrait">Portrait</button>
+            </span>
+          </div>
+          <div class="setRow">
+            <span class="label">Brightness</span>
+            <span class="seg" role="group" aria-label="Phone screen brightness">
+              <button data-set="brightness" data-val="phone">Phone's</button>
+              <button data-set="brightness" data-val="max">Maximum</button>
+              <button data-set="brightness" data-val="custom">Custom</button>
+            </span>
+          </div>
+          <div class="setRow" id="brightnessRow">
+            <span class="label"></span>
+            <input type="range" id="set-brightnessLevel" data-set="brightnessLevel" data-scale="100" min="5" max="100" step="5" aria-label="Custom brightness">
+            <span class="value" id="val-brightnessLevel"></span>
+          </div>
+          <div class="setRow">
+            <span class="label">Countdown</span>
+            <span class="seg" role="group" aria-label="Countdown before start">
+              <button data-set="countdown" data-val="0">Off</button>
+              <button data-set="countdown" data-val="3">3 s</button>
+              <button data-set="countdown" data-val="5">5 s</button>
+            </span>
+          </div>
+          <div class="setRow">
+            <span class="label">English letters</span>
+            <span class="seg" role="group" aria-label="Default language for scripts typed in English letters" title="Language to listen in for scripts typed in English letters">
+              <button data-set="defaultLanguage" data-val="te">Telugu</button>
+              <button data-set="defaultLanguage" data-val="ml">Malayalam</button>
+              <button data-set="defaultLanguage" data-val="ta">Tamil</button>
+              <button data-set="defaultLanguage" data-val="en">English</button>
+            </span>
+          </div>
+          <div class="setRow">
+            <span class="label">Options</span>
+            <button data-set="muteBeeps" data-toggle>Mute beeps</button>
+            <button data-set="volumeKeys" data-toggle>Volume buttons as remote</button>
+            <button data-set="continuousListening" data-toggle title="Android 13+. Turn off if following gets worse.">Continuous listening</button>
+          </div>
+          <div id="settingsNote"></div>
+        </div>
+
+        <div class="section">
           <details>
             <summary>Keyboard shortcuts</summary>
             <div class="keys">
@@ -438,6 +523,7 @@
     $('speed').textContent = s.speed ? Math.round(s.speed) + (s.mode === 'steady' ? '' : ' · used in Steady') : '';
     $('flip').classList.toggle('on', !!s.flip);
     $('mirror').classList.toggle('on', !!s.mirror);
+    renderSettings(s.settings);
 
     $('micPill').className = 'pill ' + (s.mode === 'steady' ? '' : s.laptopMic ? 'ok blue' : 'ok');
     const lang = s.languageLabel ? ' · ' + s.languageLabel : '';
@@ -626,6 +712,58 @@
   }
 
   $('micBtn').onclick = () => (listening ? stopMic() : startMic());
+
+  // ---------- Settings (the phone's own settings, changed from here) ----------
+  const UNITS = { eyeLine: '%', fontSize: ' pt', speed: '', brightnessLevel: '%' };
+  let dragging = null;
+  const sliderSentAt = {};
+
+  function renderSettings(st) {
+    const note = $('settingsNote');
+    if (!st || !Object.keys(st).length) { note.textContent = 'Settings appear once the phone app is updated.'; return; }
+    note.textContent = '';
+    document.querySelectorAll('[data-set]').forEach((el) => {
+      const key = el.dataset.set;
+      if (!(key in st)) return;
+      if (el.type === 'range') {
+        if (dragging === key) return;
+        const v = Math.round(st[key] * Number(el.dataset.scale));
+        el.value = v;
+        $('val-' + key).textContent = v + (UNITS[key] || '');
+      } else if ('toggle' in el.dataset) {
+        el.classList.toggle('on', !!st[key]);
+      } else {
+        el.classList.toggle('on', String(st[key]) === el.dataset.val);
+      }
+    });
+    $('brightnessRow').classList.toggle('hidden', st.brightness !== 'custom');
+  }
+
+  function setSetting(key, value) {
+    // Show the change straight away; the phone's status confirms it a moment later.
+    if (status.settings) { status.settings[key] = typeof status.settings[key] === 'boolean' ? !!Number(value) : (isNaN(value) ? value : Number(value)); renderSettings(status.settings); }
+    return cmd('set', key + '=' + value);
+  }
+
+  document.querySelectorAll('button[data-set]').forEach((b) => {
+    b.onclick = () => {
+      const key = b.dataset.set;
+      if ('toggle' in b.dataset) setSetting(key, status.settings && status.settings[key] ? 0 : 1);
+      else setSetting(key, b.dataset.val);
+    };
+  });
+
+  document.querySelectorAll('input[type=range][data-set]').forEach((el) => {
+    const key = el.dataset.set;
+    const value = () => Number(el.value) / Number(el.dataset.scale);
+    el.addEventListener('input', () => {
+      dragging = key;
+      $('val-' + key).textContent = el.value + (UNITS[key] || '');
+      const now = Date.now();
+      if (now - (sliderSentAt[key] || 0) > 80) { sliderSentAt[key] = now; setSetting(key, value()); } // not on every pixel
+    });
+    el.addEventListener('change', () => { setSetting(key, value()); dragging = null; });
+  });
 
   // ---------- Buttons and keys ----------
   const playPause = () => cmd(status.running || status.countdown > 0 ? 'pause' : 'play');
