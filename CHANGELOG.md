@@ -2,6 +2,9 @@
 
 Downloads for each version are on the [releases page](https://github.com/raghavsunil99/smart-teleprompter/releases).
 
+## 1.9
+- The red reading band now sits in the middle of the screen by default (it was 30% from the top). Still adjustable in Settings. If you hadn't changed it, it moves to the middle automatically.
+
 ## 1.8
 - Scrolling no longer stalls when the recognizer writes words it can't match to your script. It counts the words you're saying and keeps moving, up to a few lines, and snaps back onto the script as soon as a word matches again.
 

@@ -28,9 +28,14 @@
   <img src="docs/images/reading.png" alt="Reading a script: the current word glides along in the red reading band, words already read fade to grey" width="100%">
 </p>
 
-## 🆕 What's new in 1.8
+## 🆕 What's new in 1.9
+
+- **Reading band in the middle.** The red band now sits in the middle of the screen by default instead of 30% from the top. You can still move it in Settings.
+
+### Earlier: 1.8
 
 - **Keeps scrolling when words aren't recognized.** If the recognizer writes words it can't match to your script, the prompter counts how many you've said and keeps moving, then re-syncs the moment a word matches.
+
 
 ### Earlier: 1.7
 
@@ -44,7 +49,7 @@ Full history in the [changelog](CHANGELOG.md).
 
 | Device | File | Notes |
 |---|---|---|
-| 🤖 **Android** 8+ phone or tablet | [Smart-Teleprompter-by-Raghav-1.8.apk](https://github.com/raghavsunil99/smart-teleprompter/releases/latest) | Allow installing from your browser or Files app, then **Install anyway** |
+| 🤖 **Android** 8+ phone or tablet | [Smart-Teleprompter-by-Raghav-1.9.apk](https://github.com/raghavsunil99/smart-teleprompter/releases/latest) | Allow installing from your browser or Files app, then **Install anyway** |
 | 💻 **Laptop remote** (optional) | Nothing to install | Open the address the app shows in **Chrome** on a laptop on the same Wi-Fi |
 
 Step-by-step instructions: [HOW TO INSTALL SMART TELEPROMPTER.txt](docs/HOW%20TO%20INSTALL%20SMART%20TELEPROMPTER.txt). Installing a new version over an old one keeps your scripts.

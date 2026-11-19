@@ -17,7 +17,7 @@ data class PrompterSettings(
     val mirror: Boolean = false,         // flip left-right, for beam-splitter glass
     val flipVertical: Boolean = false,   // flip upside-down, for some teleprompter rigs
     val orientation: Int = ORIENTATION_AUTO,
-    val eyeLine: Float = 0.3f,      // fraction of screen height where the current line sits
+    val eyeLine: Float = 0.5f,      // fraction of screen height where the current line sits
     val manualSpeed: Float = 40f,   // pixels per second in manual mode
     val muteBeeps: Boolean = true,
     val highlightStyle: Int = HIGHLIGHT_WORD, // gliding word box, whole reading line, or none
@@ -77,12 +77,27 @@ class ScriptStore(context: Context) {
 
     fun delete(id: String) = saveScripts(loadScripts().filterNot { it.id == id })
 
-    fun loadSettings() = PrompterSettings(
+    /** The reading band moved from 30% to the middle in 1.9: carry over anyone still on the old default. */
+    private fun migrateEyeLine() {
+        if (prefs.getBoolean("eyeLineCentered", false)) return
+        val edit = prefs.edit().putBoolean("eyeLineCentered", true)
+        if (prefs.contains("eyeLine") && kotlin.math.abs(prefs.getFloat("eyeLine", 0.5f) - 0.3f) < 0.001f) {
+            edit.putFloat("eyeLine", 0.5f)
+        }
+        edit.apply()
+    }
+
+    fun loadSettings(): PrompterSettings {
+        migrateEyeLine()
+        return readSettings()
+    }
+
+    private fun readSettings() = PrompterSettings(
         fontSizeSp = prefs.getFloat("fontSize", 34f),
         mirror = prefs.getBoolean("mirror", false),
         flipVertical = prefs.getBoolean("flipVertical", false),
         orientation = prefs.getInt("orientation", PrompterSettings.ORIENTATION_AUTO),
-        eyeLine = prefs.getFloat("eyeLine", 0.3f),
+        eyeLine = prefs.getFloat("eyeLine", 0.5f),
         manualSpeed = prefs.getFloat("manualSpeed", 40f),
         muteBeeps = prefs.getBoolean("muteBeeps", true),
         // v1.1–v1.3 stored a line-highlight on/off switch; carry it over.
